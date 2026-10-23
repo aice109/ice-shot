@@ -282,7 +282,11 @@ struct LibraryView: View {
                 errorMessage = LibraryActionError.originalMissing.errorDescription
                 return
             }
-            editor.open(image: image, title: "编辑截图")
+            editor.open(
+                image: image,
+                title: "编辑截图",
+                target: .history(recordID: record.id, isFavorite: record.isFavorite)
+            )
         }
     }
 

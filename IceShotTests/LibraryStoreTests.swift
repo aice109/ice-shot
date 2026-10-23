@@ -45,6 +45,60 @@ struct LibraryStoreTests {
         #expect(!FileManager.default.fileExists(atPath: thumbnailURL.path))
     }
 
+    // MARK: - 按 ID 删除（编辑器入口）
+
+    @Test func fetchRecordFindsSavedRecord() async throws {
+        let (runtime, baseURL) = try makeRuntime()
+        defer { try? FileManager.default.removeItem(at: baseURL) }
+
+        try await runtime.store.save([try makeImage(width: 40, height: 30)], source: .region)
+        let record = try #require(
+            try runtime.container.mainContext.fetch(
+                FetchDescriptor<ScreenshotRecord>()
+            ).first
+        )
+
+        let found = runtime.store.fetchRecord(id: record.id)
+        #expect(found?.id == record.id)
+    }
+
+    @Test func fetchRecordReturnsNilForUnknownID() async throws {
+        let (runtime, baseURL) = try makeRuntime()
+        defer { try? FileManager.default.removeItem(at: baseURL) }
+
+        #expect(runtime.store.fetchRecord(id: UUID()) == nil)
+    }
+
+    @Test func deleteRecordByIDRemovesRecordAndFiles() async throws {
+        let (runtime, baseURL) = try makeRuntime()
+        defer { try? FileManager.default.removeItem(at: baseURL) }
+
+        try await runtime.store.save([try makeImage(width: 40, height: 30)], source: .region)
+        let record = try #require(
+            try runtime.container.mainContext.fetch(
+                FetchDescriptor<ScreenshotRecord>()
+            ).first
+        )
+        let originalURL = runtime.paths.screenshotsDirectory
+            .appendingPathComponent(record.originalFileName)
+
+        let deleted = try await runtime.store.deleteRecord(id: record.id)
+        #expect(deleted)
+        #expect(try runtime.container.mainContext.fetch(
+            FetchDescriptor<ScreenshotRecord>()
+        ).isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: originalURL.path))
+    }
+
+    @Test("记录已不存在时按已删除处理，不当报错")
+    func deleteRecordByIDReturnsFalseWhenMissing() async throws {
+        let (runtime, baseURL) = try makeRuntime()
+        defer { try? FileManager.default.removeItem(at: baseURL) }
+
+        let deleted = try await runtime.store.deleteRecord(id: UUID())
+        #expect(deleted == false)
+    }
+
     @Test func favoriteCanBeToggledAndPersists() async throws {
         let (runtime, baseURL) = try makeRuntime()
         defer { try? FileManager.default.removeItem(at: baseURL) }

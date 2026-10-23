@@ -4,7 +4,7 @@ import SwiftData
 
 /// SwiftData 元数据 + 沙盒文件的历史库。所有记录操作都在 MainActor，磁盘 IO 在 FileStore actor。
 @MainActor
-final class LibraryStore: HistorySaving {
+final class LibraryStore: HistorySaving, EditorDeleting {
     let container: ModelContainer
     let fileStore: FileStore
 
@@ -163,6 +163,18 @@ final class LibraryStore: HistorySaving {
         }
     }
 
+    /// 按 ID 删除：编辑器只拿到 `UUID`，用这个入口把 ID 换回 context 里的引用再删。
+    ///
+    /// - Returns: `false` 表示记录已不存在（可能刚被别处删掉 / 已被清理策略移除），
+    ///   调用方按「已经删掉了」处理即可，不当报错。
+    func deleteRecord(id: UUID) async throws -> Bool {
+        guard let record = fetchRecord(id: id) else {
+            return false
+        }
+        try await delete(record)
+        return true
+    }
+
     func deleteAll() async throws {
         let records = try fetchRecords()
         for record in records {
@@ -221,6 +233,22 @@ final class LibraryStore: HistorySaving {
             return try context.fetch(descriptor)
         } catch {
             throw LibraryError.storageUnavailable
+        }
+    }
+
+    /// 按 ID 取一条记录；取不到（可能已被别处删掉）返回 `nil`。
+    ///
+    /// 编辑器只持有 `UUID`（它拿到的是解码后的 `CGImage`，不持有 SwiftData 对象），
+    /// 删除前要用这个方法把 ID 换回当前 context 里的那个引用。
+    func fetchRecord(id: UUID) -> ScreenshotRecord? {
+        var descriptor = FetchDescriptor<ScreenshotRecord>(
+            predicate: #Predicate { $0.id == id }
+        )
+        descriptor.fetchLimit = 1
+        do {
+            return try context.fetch(descriptor).first
+        } catch {
+            return nil
         }
     }
 

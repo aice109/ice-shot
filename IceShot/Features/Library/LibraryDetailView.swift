@@ -249,7 +249,11 @@ struct LibraryDetailView: View {
 
     private func openEditor() {
         guard let preview, let editor else { return }
-        editor.open(image: preview, title: "编辑截图")
+        editor.open(
+            image: preview,
+            title: "编辑截图",
+            target: .history(recordID: record.id, isFavorite: record.isFavorite)
+        )
     }
 
     private func copy() {

@@ -43,7 +43,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let pins = PinBoard()
         let feedback = FeedbackHUDController()
-        let editor = EditorCoordinator(pins: pins, feedback: feedback)
+        let editor = EditorCoordinator(
+            pins: pins,
+            feedback: feedback,
+            library: runtime?.store
+        )
         let coordinator = CaptureCoordinator(
             history: runtime?.store,
             pins: pins,

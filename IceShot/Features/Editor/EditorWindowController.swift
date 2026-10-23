@@ -13,18 +13,35 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
     private let pins: PinBoard?
     /// 应用级反馈面板；为 nil 时视图里没有反馈通道（测试直接构造控制器时）。
     private let feedback: FeedbackHUDController?
+    /// 历史库：只有它能真正删掉一条历史记录。为 nil 时编辑器不开删除入口。
+    private let deleter: (any EditorDeleting)?
+    /// 这张图从哪来：决定显不显示删除、能不能删。
+    private let target: EditorTarget
     var onClose: (() -> Void)?
+
+    /// 真正的删除入口：来源与依赖都就绪时才提供。
+    /// 收藏的图也在这里返回 `nil`：按钮本身就不出现，而不是出现一个点不动的按钮。
+    private var deletionTarget: EditorTarget? {
+        guard deleter != nil, target.allowsDelete, let recordID = target.recordID else {
+            return nil
+        }
+        return .history(recordID: recordID, isFavorite: false)
+    }
 
     init(
         image: CGImage,
         title: String,
         pins: PinBoard? = nil,
-        feedback: FeedbackHUDController? = nil
+        feedback: FeedbackHUDController? = nil,
+        deleter: (any EditorDeleting)? = nil,
+        target: EditorTarget = .standalone
     ) {
         let model = EditorModel(image: image, title: title)
         self.model = model
         self.pins = pins
         self.feedback = feedback
+        self.deleter = deleter
+        self.target = target
 
         let window = EditorWindow(
             contentRect: NSRect(x: 0, y: 0, width: 1080, height: 740),
@@ -44,6 +61,9 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
 
         window.contentView = NSHostingView(rootView: rootView())
         window.delegate = self
+        // 工具栏保留给窗口级别的动作（删除）：操作条是两个入口共用的，
+        // 往里面加「删除」会同时给截图浮层加上一个语义不对的按钮。
+        configureToolbar()
         model.onImageChange = { [weak self] in
             self?.updateSubtitle()
         }
@@ -51,6 +71,9 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
             self?.handleKeyEvent(event) ?? false
         }
     }
+
+    /// 删除按钮的引用：`NSToolbarDelegate` 需要把它交给工具栏。
+    private var deleteToolbarItem: NSToolbarItem?
 
     required init?(coder: NSCoder) {
         nil
@@ -60,6 +83,31 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
         NSColorPanel.shared.close()
         onClose?()
         onClose = nil
+    }
+
+    /// 标题栏里的「删除」：只在从历史库打开、且未收藏时出现。
+    private func configureToolbar() {
+        guard deletionTarget != nil, let window else { return }
+        let item = NSToolbarItem(itemIdentifier: .deleteScreenshot)
+        item.label = "删除"
+        item.paletteLabel = "删除截图"
+        item.toolTip = target.deleteHelp
+        item.image = NSImage(
+            systemSymbolName: "trash",
+            accessibilityDescription: "删除截图"
+        )
+        item.isBordered = true
+        item.target = self
+        item.action = #selector(deleteScreenshotAction)
+        deleteToolbarItem = item
+
+        let toolbar = NSToolbar(identifier: "EditorToolbar")
+        toolbar.delegate = self
+        toolbar.displayMode = .iconOnly
+        toolbar.allowsUserCustomization = false
+        toolbar.autosavesConfiguration = false
+        window.toolbar = toolbar
+        window.toolbarStyle = .unified
     }
 
     /// 窗口内容：`EditorRootView`（共用操作条 + 画布 + 状态栏）。
@@ -119,8 +167,16 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
             return false
         }
 
-        if event.keyCode == 51 || event.keyCode == 117 {
-            model.deleteSelected()
+        if let command = EditorKeyMapping.command(
+            forKeyCode: event.keyCode,
+            modifiers: event.modifierFlags
+        ) {
+            switch command {
+            case .deleteScreenshot:
+                requestDelete()
+            case .deleteSelectedAnnotation:
+                model.deleteSelected()
+            }
             return true
         }
 
@@ -149,6 +205,8 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
                 break
             }
         }
+
+        // ⌘⌫ = 删除这张历史截图；映射见 `EditorKeyMapping`（必须先于裸 ⌫ 判定）。
         if event.keyCode == 53 {
             // 取字模式优先：Esc 先退出取字，再关二级选项浮窗，最后才是取消选中。
             if model.isTextPicking {
@@ -226,6 +284,67 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
         }
     }
 
+    // MARK: - 删除
+
+    @objc private func deleteScreenshotAction() {
+        requestDelete()
+    }
+
+    /// 删除前的完整流程：确认 → 调库 → 关窗。
+    ///
+    /// 不可删的状态（截图进编辑器 / 收藏的图）通过 `⌘⌫` 进来时，要明确告知原因，
+    /// 不能默默无反应——用户会以为快捷键坏了。
+    private func requestDelete() {
+        guard let deletionTarget else {
+            model.statusMessage = deletionBlockedMessage
+            return
+        }
+        guard let deleter, let recordID = deletionTarget.recordID, let window else { return }
+
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "删除这张截图？"
+        alert.informativeText = "原图与缩略图会从历史库删除，无法恢复。"
+        alert.addButton(withTitle: "删除")
+        alert.addButton(withTitle: "取消")
+        // 默认按钮是「删除」：回车就删不是好默认，把焦点放到「取消」上。
+        alert.window.initialFirstResponder = alert.buttons.last
+
+        alert.beginSheetModal(for: window) { [weak self] response in
+            guard response == .alertFirstButtonReturn else { return }
+            self?.performDelete(recordID: recordID, using: deleter)
+        }
+    }
+
+    /// 不可删时的说明：状态栏一句话，不带弹窗（快捷键误按不该被打断）。
+    private var deletionBlockedMessage: String {
+        switch target {
+        case .standalone:
+            return "这张图不在历史库里，没有可删除的记录（关闭窗口即可）"
+        case .history(_, let isFavorite) where isFavorite:
+            return "已收藏的截图不会被自动清理，请先取消收藏再删除"
+        case .history:
+            return "当前无法删除"
+        }
+    }
+
+    private func performDelete(recordID: UUID, using deleter: any EditorDeleting) {
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                // `false` = 记录已经不在了（被别处删过 / 被清理策略清掉），按已删掉处理。
+                _ = try await deleter.deleteRecord(id: recordID)
+                self.model.statusMessage = "已删除"
+                self.window?.close()
+            } catch {
+                self.presentError(
+                    (error as? LocalizedError)?.errorDescription
+                        ?? "删除失败（错误码 \((error as NSError).code)）。"
+                )
+            }
+        }
+    }
+
     private func presentError(_ message: String) {
         guard let window else { return }
         let alert = NSAlert()
@@ -245,5 +364,33 @@ private final class EditorWindow: NSWindow {
             return
         }
         super.sendEvent(event)
+    }
+}
+
+// MARK: - 工具栏
+
+private extension NSToolbarItem.Identifier {
+    static let deleteScreenshot = NSToolbarItem.Identifier("EditorDeleteScreenshot")
+}
+
+extension EditorWindowController: NSToolbarDelegate {
+    func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        if let item = deleteToolbarItem {
+            return [.flexibleSpace, item.itemIdentifier, .flexibleSpace]
+        }
+        return []
+    }
+
+    func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        deleteToolbarItem.map { [$0.itemIdentifier, .flexibleSpace] } ?? [.flexibleSpace]
+    }
+
+    func toolbar(
+        _ toolbar: NSToolbar,
+        itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier,
+        willBeInsertedIntoToolbar flag: Bool
+    ) -> NSToolbarItem? {
+        guard itemIdentifier == .deleteScreenshot else { return nil }
+        return deleteToolbarItem
     }
 }
