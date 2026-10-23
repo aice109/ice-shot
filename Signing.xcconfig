@@ -1,0 +1,18 @@
+// Signing.xcconfig
+//
+// 签名配置入口。**故意不写 Team ID**，让仓库可以公开分发。
+//
+// 本机开发：复制模板并填自己的 Apple Development Team ID
+//   cp Signing.local.xcconfig.example Signing.local.xcconfig
+// 然后编辑 Signing.local.xcconfig，写入
+//   DEVELOPMENT_TEAM = ABCDE12345
+//
+// `Signing.local.xcconfig` 已在 .gitignore 里，不会进版本库，推代码也不会带上它。
+//
+// 查自己的 Team ID：
+//   security find-identity -v -p codesigning
+// 或 Xcode → Settings → Accounts → 选中 Team，右侧 Team ID。
+//
+// 没填本地文件时 Team 为空：Xcode 会让开发者自己选团队，能编译、不能做发布签名。
+
+#include? "Signing.local.xcconfig"

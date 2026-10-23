@@ -1,0 +1,52 @@
+# macOS
+.DS_Store
+
+# Xcode —— 个人状态（窗口布局 / 断点 / scheme 可见性），不提交
+xcuserdata/
+*.xcuserdatad/
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+
+# 本机签名配置（Team ID 不进版本库）
+# Signing.xcconfig 入库（空默认值 + #include?），Signing.local.xcconfig 只留本机
+Signing.local.xcconfig
+
+# 构建产物
+DerivedData/
+build/
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+*.xcresult
+*.profraw
+
+# 发布产物：`Scripts/package.sh` 写在仓库根目录，不提交
+/IceShot-*.dmg
+/IceShot-*.dmg.sha256
+
+# Swift Package Manager
+.build/
+.swiftpm/
+# 注意：Package.resolved 需要提交（依赖锁定），勿忽略
+
+# 截图 / 测试产物（本地验证用，不入库）
+/Screenshots/
+/TestOutput/
+*.iceshot-test.png
+
+# 本地维护文档（不随仓库发布，仅本机使用）
+/AGENTS.md
+/docs/工程规范.md
+/docs/界面规范.md
+/docs/项目现状.md
+
+# 密钥与签名材料（绝不提交；证书由本机钥匙串管理，不进仓库）
+*.p12
+*.cer
+*.mobileprovision
+*.provisionprofile
+.env
+.env.*

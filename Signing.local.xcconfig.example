@@ -1,0 +1,13 @@
+// Signing.local.xcconfig.example
+//
+// 用法：复制成 `Signing.local.xcconfig`（已被 .gitignore 忽略），再填自己的 Team ID。
+//
+//   cp Signing.local.xcconfig.example Signing.local.xcconfig
+//
+// Team ID 是 10 位大写字母数字，查法：
+//   security find-identity -v -p codesigning
+// 或 Xcode → Settings → Accounts → 选中 Team，右侧 Team ID。
+//
+// 别把填好的 `Signing.local.xcconfig` 提交上去。
+
+DEVELOPMENT_TEAM = YOUR_TEAM_ID
