@@ -9,6 +9,7 @@ struct SettingsView: View {
     let coordinator: CaptureCoordinator
     let hotkeys: GlobalHotkeyManager?
     let library: LibraryStore?
+    let updates: UpdateChecker?
 
     @AppStorage(HistoryPreferences.enabledKey) private var historyEnabled = true
     @AppStorage(OCRPreferences.autoRecognizeKey) private var autoRecognize = true
@@ -85,6 +86,9 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                if let updates {
+                    updateSection(updates)
+                }
                 Text("截图默认只在本机处理，不上传。")
                     .foregroundStyle(.secondary)
             }
@@ -112,7 +116,6 @@ struct SettingsView: View {
     }
 
     // MARK: - 通用
-
     /// 开机自启动：开关值来自系统登录项状态，开启 / 关闭失败会回滚并给出原因。
     private var generalSection: some View {
         Section("通用") {
@@ -156,6 +159,28 @@ struct SettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
+    }
+
+    // MARK: - 更新
+
+    /// 自动检查开关 + 手动入口。
+    ///
+    /// 开关直接绑 `UpdateChecker.isEnabled`（它负责落盘），不用 `@AppStorage`：
+    /// 检查器要立即感知开关变化，两处各自持一份状态容易出现「关掉了却还在查」。
+    @ViewBuilder
+    private func updateSection(_ updates: UpdateChecker) -> some View {
+        @Bindable var updates = updates
+
+        Toggle("自动检查更新", isOn: $updates.isEnabled)
+        Text("每天最多检查一次，只请求 GitHub 的 Release 接口，不上传任何数据。")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+        Button("立即检查一次") {
+            Task { await updates.checkNow() }
+        }
+        .disabled(!updates.isEnabled)
     }
 
     // MARK: - 全局快捷键

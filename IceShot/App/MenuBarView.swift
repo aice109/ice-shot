@@ -10,6 +10,7 @@ struct MenuBarView: View {
     let hotkeys: GlobalHotkeyManager?
     let library: LibraryStore?
     let pins: PinBoard?
+    let updates: UpdateChecker?
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openWindow) private var openWindow
@@ -34,6 +35,11 @@ struct MenuBarView: View {
         .frame(width: 320)
         .onAppear {
             coordinator.refreshPermission()
+        }
+        // 面板每次真正出现都会重跑 `task`，这是比 `onAppear` 更可靠的检查点：
+        // 菜单栏 App 可能连开好几天不重启，只在启动时查会漏掉整天不开的时段。
+        .task {
+            updates?.checkIfDue()
         }
         .onReceive(NotificationCenter.default.publisher(for: .iceShotDismissMenuBarPanel)) { _ in
             closeMenuBarPanel()
@@ -343,6 +349,16 @@ struct MenuBarView: View {
             }
             .buttonStyle(.borderless)
             .help("打开设置（⌘,）")
+
+            if let updates {
+                Button {
+                    Task { await updates.checkNow() }
+                } label: {
+                    Label("检查更新…", systemImage: "arrow.triangle.2.circlepath")
+                }
+                .buttonStyle(.borderless)
+                .help("立即检查 GitHub 上是否有新版本")
+            }
 
             Spacer(minLength: 0)
 

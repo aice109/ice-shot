@@ -15,17 +15,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let pins: PinBoard
     /// 应用级短反馈（复制 / 保存 / 取字复制条码…）：跨窗口共用一条通道。
     let feedback: FeedbackHUDController
+    /// 更新检查：启动与菜单栏面板打开时调用，状态也被设置页读取。
+    let updates: UpdateChecker
     let modelContainer: ModelContainer?
     let library: LibraryStore?
     let startupError: String?
 
     /// 有常规窗口时显示 Dock 图标，全部关闭后回到菜单栏形态。
+    /// 测试宿主标记：测试也会启动 App，不能弹欢迎框、注册快捷键或联网检查更新。
+    private let isTestHost: Bool
     private var activationPolicy: ActivationPolicyController?
     private var permissionOnboarding: PermissionOnboardingWindowController?
     private var observers: [NSObjectProtocol] = []
 
     override init() {
         let isTestHost = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+        self.isTestHost = isTestHost
 
         var runtime: LibraryRuntime?
         var startupError: String?
@@ -50,6 +55,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.editor = editor
         self.pins = pins
         self.feedback = feedback
+        self.updates = UpdateChecker(presenter: AlertUpdatePresenter())
         self.modelContainer = runtime?.container
         self.library = runtime?.store
         self.startupError = startupError
@@ -58,7 +64,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // 测试宿主也会启动 App；不要在测试时弹欢迎框或注册全局快捷键。
-        guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else {
+        guard !isTestHost else {
             return
         }
 
@@ -77,6 +83,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         presentStartupGuidance()
+        // 启动也是检查点之一（另一处是菜单栏面板打开）；两者共用 24 小时节流。
+        updates.checkIfDue()
     }
 
     /// 未授权时先弹权限引导窗口；已授权且首次启动时再说明应用在菜单栏。
