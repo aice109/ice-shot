@@ -563,6 +563,11 @@ final class CaptureCoordinator {
                 restorePreviousApplication()
                 state = .idle
             } else {
+                // 先把前台还给被截的 App，再开始采集：
+                // 框选浮层是 IceShot 的 `.screenSaver` 层级 NSPanel，它关闭时如果 IceShot 仍是
+                // 前台，IceShot 自己的常规窗口（设置 / 历史）会随之露出来，正挡在用户框好的区域上。
+                // 顺序不能换：先激活自己再恢复对方，恢复会被丢掉。
+                restorePreviousApplication()
                 beginScrollCapture(
                     displayID: finish.result.frame.display.id,
                     rect: finish.result.rect

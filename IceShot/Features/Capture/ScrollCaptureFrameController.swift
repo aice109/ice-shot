@@ -23,6 +23,9 @@ final class ScrollCaptureFrameController {
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = false
+        // 采集期间用户要切到被截的 App 里滚动，本 App 会失活；
+        // 这层边框必须在那时也保持可见，否则「正在抓哪一块」提示会跟着消失。
+        panel.hidesOnDeactivate = false
         panel.ignoresMouseEvents = true
         panel.isReleasedWhenClosed = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
