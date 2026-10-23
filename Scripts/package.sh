@@ -121,7 +121,7 @@ actual_team=$(printf '%s' "$signature_info" | sed -n 's/^TeamIdentifier=//p' | h
 [ "$actual_team" = "$team_id" ] || fail "Team 不匹配：期望 ${team_id}，实际 ${actual_team:-无}"
 printf '%s\n' "$signature_info" | grep -E "Identifier|TeamIdentifier|Timestamp" || true
 
-echo "▸ 校验 entitlements（沙盒 + 用户选择文件；无联网、无 get-task-allow）"
+echo "▸ 校验 entitlements（沙盒 + 用户选择文件 + 联网仅限更新检查；无 get-task-allow）"
 [ -f "$entitlements" ] || fail "缺少 $entitlements"
 app_entitlements=$(codesign -d --entitlements - "$app_path" 2>/dev/null) || fail "读取 entitlements 失败"
 if printf '%s' "$app_entitlements" | grep -q "get-task-allow"; then
