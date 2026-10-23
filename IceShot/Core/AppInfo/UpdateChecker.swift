@@ -162,9 +162,16 @@ final class UpdateChecker {
         }
 
         if remote > current {
-            guard remote != skippedVersion else {
-                if promptUser { presenter.presentUpToDate(currentVersion: current.displayText, channelTag: AppVersion.channel.tag) }
+            // 用户点过「稍后」的版本：自动检查不再打扰；但**手动**检查是用户
+            // 主动询问，必须如实答复有新版本，否则会误报「已是最新」。
+            let isSkipped = remote == skippedVersion
+            if isSkipped && !promptUser {
                 return
+            }
+            // 手动检查重新弹出后，清掉静默标记：用户已经看过这个版本，
+            // 再次选「稍后」会重新写入，不选就不应该继续带着旧标记。
+            if isSkipped && promptUser {
+                skippedVersion = nil
             }
             presentUpdate(release, version: remote)
         } else if promptUser {

@@ -12,7 +12,7 @@ struct AlertUpdatePresenter: UpdatePresenting {
         channelTag: String?,
         canDownloadInApp: Bool
     ) -> UpdateChoice {
-        NSApplication.shared.activate()
+        Self.bringToFront()
 
         let alert = NSAlert()
         alert.alertStyle = .informational
@@ -44,7 +44,7 @@ struct AlertUpdatePresenter: UpdatePresenting {
     }
 
     func presentUpToDate(currentVersion: String, channelTag: String?) {
-        NSApplication.shared.activate()
+        Self.bringToFront()
 
         let alert = NSAlert()
         alert.alertStyle = .informational
@@ -55,7 +55,7 @@ struct AlertUpdatePresenter: UpdatePresenting {
     }
 
     func presentFailure() {
-        NSApplication.shared.activate()
+        Self.bringToFront()
 
         let alert = NSAlert()
         alert.alertStyle = .warning
@@ -66,7 +66,7 @@ struct AlertUpdatePresenter: UpdatePresenting {
     }
 
     func presentDownloadFailure(_ error: UpdateDownloadError) {
-        NSApplication.shared.activate()
+        Self.bringToFront()
 
         let alert = NSAlert()
         alert.alertStyle = .warning
@@ -90,7 +90,7 @@ struct AlertUpdatePresenter: UpdatePresenting {
     }
 
     func presentDownloadFinished(at url: URL) {
-        NSApplication.shared.activate()
+        Self.bringToFront()
 
         let alert = NSAlert()
         alert.alertStyle = .informational
@@ -126,7 +126,7 @@ struct AlertUpdatePresenter: UpdatePresenting {
             panel.directoryURL = downloads
         }
 
-        NSApplication.shared.activate()
+        Self.bringToFront()
         guard panel.runModal() == .OK, let destination = panel.url else {
             return nil
         }
@@ -139,6 +139,33 @@ struct AlertUpdatePresenter: UpdatePresenting {
             return destination
         } catch {
             return nil
+        }
+    }
+
+    /// 把应用切到最前，保证 `NSAlert` 真的可见。
+    ///
+    /// `LSUIElement` 菜单栏 App 的激活策略是 `.accessory`，这种形态下只调
+    /// `NSApplication.activate()` 并不可靠：macOS 14+ 可能拒绝后台应用自己激活自己，
+    /// 结果就是 `runModal()` 弹窗跑到其它窗口后面甚至不显示。
+    /// 与 `PermissionOnboardingWindow` / `SettingsWindowPresenter` 保持一致的做法是
+    /// 先切 `.regular`，等弹窗关闭后再由 `ActivationPolicyController` 收回。
+    @MainActor
+    private static func bringToFront() {
+        let app = NSApplication.shared
+        if app.activationPolicy() != .regular {
+            app.setActivationPolicy(.regular)
+        }
+        app.activate()
+        _ = NSRunningApplication.current.activate(options: [.activateAllWindows])
+
+        // `setActivationPolicy` 在 WindowServer 侧是异步的：刚切完立刻 `runModal()`
+        // 可能仍然落在旧策略下，弹窗跑到其它窗口后面。轮询等策略真正生效，
+        // 最多等 ~100ms——期间跑几轮 RunLoop，也能让待排的窗口事件处理完。
+        for _ in 0..<20 {
+            if app.activationPolicy() == .regular, app.isActive {
+                break
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.005))
         }
     }
 

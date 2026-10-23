@@ -92,7 +92,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         presentStartupGuidance()
         // 启动也是检查点之一（另一处是菜单栏面板打开）；两者共用 24 小时节流。
-        updates.checkIfDue()
+        //
+        // 不能直接同步调：`presentStartupGuidance()` 可能弹出模态的权限引导窗口，
+        // 把人挡在外面；而 `NSAlert.runModal()` 也需要 App 已完成启动、激活策略就绪。
+        // 推到下一轮 RunLoop 再查，此时启动引导已经稳定下来。
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(500))
+            updates.checkIfDue()
+        }
     }
 
     /// 未授权时先弹权限引导窗口；已授权且首次启动时再说明应用在菜单栏。
