@@ -5,6 +5,9 @@ import UniformTypeIdentifiers
 ///
 /// 统一用 `NSAlert` / `NSSavePanel` 这些系统原生控件：符合 HIG、默认按钮回车即可触发，
 /// 对一个「发现新版 → 下载 → 另存」的流程来说已经够用，不需要自建窗口。
+///
+/// 每个弹窗都先关掉菜单栏面板：`MenuBarExtra` 面板是独立的高层级窗口，
+/// 面板开着的时候模态弹窗会落在它后面，用户看到的就是「点了没反应」。
 struct AlertUpdatePresenter: UpdatePresenting {
     func presentUpdate(
         version: String,
@@ -12,7 +15,7 @@ struct AlertUpdatePresenter: UpdatePresenting {
         channelTag: String?,
         canDownloadInApp: Bool
     ) -> UpdateChoice {
-        Self.bringToFront()
+        Self.prepareForAlert()
 
         let alert = NSAlert()
         alert.alertStyle = .informational
@@ -44,7 +47,7 @@ struct AlertUpdatePresenter: UpdatePresenting {
     }
 
     func presentUpToDate(currentVersion: String, channelTag: String?) {
-        Self.bringToFront()
+        Self.prepareForAlert()
 
         let alert = NSAlert()
         alert.alertStyle = .informational
@@ -55,7 +58,7 @@ struct AlertUpdatePresenter: UpdatePresenting {
     }
 
     func presentFailure() {
-        Self.bringToFront()
+        Self.prepareForAlert()
 
         let alert = NSAlert()
         alert.alertStyle = .warning
@@ -66,7 +69,10 @@ struct AlertUpdatePresenter: UpdatePresenting {
     }
 
     func presentDownloadFailure(_ error: UpdateDownloadError) {
-        Self.bringToFront()
+        // 取消的路径在 `UpdateChecker` 里已经先短路了，这里再兜一层：
+        // 用户自己取消的不该弹出错误框，也不该为此关面板、切激活策略。
+        guard error != .cancelled else { return }
+        Self.prepareForAlert()
 
         let alert = NSAlert()
         alert.alertStyle = .warning
@@ -74,7 +80,6 @@ struct AlertUpdatePresenter: UpdatePresenting {
 
         switch error {
         case .cancelled:
-            // 用户自己取消的，不必再弹一次错误框。
             return
         case .checksumMismatch:
             alert.messageText = "安装包校验失败"
@@ -90,7 +95,7 @@ struct AlertUpdatePresenter: UpdatePresenting {
     }
 
     func presentDownloadFinished(at url: URL) {
-        Self.bringToFront()
+        Self.prepareForAlert()
 
         let alert = NSAlert()
         alert.alertStyle = .informational
@@ -126,7 +131,7 @@ struct AlertUpdatePresenter: UpdatePresenting {
             panel.directoryURL = downloads
         }
 
-        Self.bringToFront()
+        Self.prepareForAlert()
         guard panel.runModal() == .OK, let destination = panel.url else {
             return nil
         }
@@ -140,6 +145,16 @@ struct AlertUpdatePresenter: UpdatePresenting {
         } catch {
             return nil
         }
+    }
+
+    /// 弹模态窗之前的固定准备：关掉菜单栏面板，再把应用切到最前。
+    ///
+    /// 顺序不能反：面板是 App 自己的高层级窗口，它还在时模态窗排不到最前；
+    /// 先 `dismiss()`（由 `MenuBarView` 关掉面板并归还焦点），再切激活策略。
+    @MainActor
+    private static func prepareForAlert() {
+        NotificationCenter.default.post(name: .iceShotDismissMenuBarPanel, object: nil)
+        bringToFront()
     }
 
     /// 把应用切到最前，保证 `NSAlert` 真的可见。
