@@ -25,11 +25,19 @@ struct UpdateCheckerTests {
         }
     }
 
-    private static func makeRelease(tag: String) -> RemoteRelease {
-        RemoteRelease(
+    private static func makeRelease(tag: String, withDiskImage: Bool = false) -> RemoteRelease {
+        let dmg = withDiskImage
+            ? ReleaseAsset(
+                name: "IceShot-\(tag).dmg",
+                url: URL(string: "https://example.invalid/IceShot.dmg")!,
+                checksumTextURL: nil
+            )
+            : nil
+        return RemoteRelease(
             tagName: tag,
             htmlURL: URL(string: "https://github.com/aice109/ice-shot/releases/tag/\(tag)")!,
-            notes: "- 修了点东西"
+            notes: "- 修了点东西",
+            diskImage: dmg
         )
     }
 
@@ -39,12 +47,21 @@ struct UpdateCheckerTests {
         var updateVersions: [String] = []
         var upToDateCalls = 0
         var failureCalls = 0
-        /// 「前往下载」是否被选中；`false` 模拟用户点「稍后」。
-        var userOpensDownload = true
+        var downloadFailureCalls = 0
+        var finishedURLs: [URL] = []
+        /// 用户在更新弹窗里的选择；默认「稍后」以外要显式设。
+        var choice: UpdateChoice = .openWeb
+        /// 保存面板返回的地址；`nil` 模拟用户取消。
+        var saveDestination: URL?
 
-        func presentUpdate(version: String, notes: String, channelTag: String?) -> Bool {
+        func presentUpdate(
+            version: String,
+            notes: String,
+            channelTag: String?,
+            canDownloadInApp: Bool
+        ) -> UpdateChoice {
             updateVersions.append(version)
-            return userOpensDownload
+            return choice
         }
 
         func presentUpToDate(currentVersion: String, channelTag: String?) {
@@ -54,6 +71,28 @@ struct UpdateCheckerTests {
         func presentFailure() {
             failureCalls += 1
         }
+
+        func presentDownloadFailure(_ error: UpdateDownloadError) {
+            downloadFailureCalls += 1
+        }
+
+        func presentDownloadFinished(at url: URL) {
+            finishedURLs.append(url)
+        }
+
+        func presentDownloadProgress(fileName: String) -> UpdateProgressPresentation {
+            NoopProgressPresentation()
+        }
+
+        func presentSavePanel(suggestedName: String, sourceURL: URL) -> URL? {
+            saveDestination
+        }
+    }
+
+    @MainActor
+    private final class NoopProgressPresentation: UpdateProgressPresentation {
+        func update(fraction: Double?) {}
+        func dismiss() {}
     }
 
     /// 每个用例一份独立的偏好域，避免并行测试互相影响。
@@ -282,7 +321,7 @@ struct UpdateCheckerTests {
     @Test func tappingLaterSilencesThatVersion() async {
         let fetcher = FakeFetcher(result: .success(Self.makeRelease(tag: "v0.4.0")))
         let presenter = FakePresenter()
-        presenter.userOpensDownload = false
+        presenter.choice = .later
         let defaults = makeDefaults()
         let now = Date()
         let checker = makeChecker(fetcher: fetcher, defaults: defaults, presenter: presenter, now: now)
@@ -324,5 +363,144 @@ struct UpdateCheckerTests {
         await checker.checkNow()
 
         #expect(presenter.updateVersions == ["0.5.0"])
+    }
+
+    // MARK: - 应用内下载编排
+
+    /// 假下载器：记录被请求的资产，可控制成功 / 失败。
+    private final class FakeDownloader: UpdateDownloading {
+        let result: Result<URL, UpdateDownloadError>
+        /// 用 `LockedFlag` 思路的轻量互斥，避开在 async 上下文直接拿 `NSLock`。
+        private let names = LockedNames()
+
+        var requestedNames: [String] {
+            names.all
+        }
+
+        init(result: Result<URL, UpdateDownloadError>) {
+            self.result = result
+        }
+
+        func download(
+            _ asset: ReleaseAsset,
+            onProgress: @Sendable @escaping (Double?) -> Void
+        ) async throws -> URL {
+            names.append(asset.name)
+            onProgress(0.5)
+            return try result.get()
+        }
+    }
+
+    /// 下载器用的线程安全可变数组。
+    private final class LockedNames: @unchecked Sendable {
+        private let lock = NSLock()
+        private var values: [String] = []
+
+        var all: [String] {
+            lock.lock()
+            defer { lock.unlock() }
+            return values
+        }
+
+        func append(_ value: String) {
+            lock.lock()
+            values.append(value)
+            lock.unlock()
+        }
+    }
+
+    /// 用户选「立即下载」且下载成功 → 走保存面板 → 提示完成。
+    @MainActor
+    @Test func inAppDownloadSuccessSavesAndNotifies() async {
+        let localURL = URL(fileURLWithPath: "/tmp/IceShot-9.9.9.dmg")
+        let savedURL = URL(fileURLWithPath: "/tmp/saved/IceShot-9.9.9.dmg")
+        let downloader = FakeDownloader(result: .success(localURL))
+        let presenter = FakePresenter()
+        presenter.choice = .downloadInApp
+        presenter.saveDestination = savedURL
+
+        let checker = UpdateChecker(
+            fetch: FakeFetcher(result: .success(Self.makeRelease(tag: "v9.9.9", withDiskImage: true))),
+            defaults: makeDefaults(),
+            presenter: presenter,
+            downloader: downloader,
+            currentVersion: SemanticVersion(tag: "0.3.1")
+        )
+
+        await checker.checkNow()
+        // 下载在内部 Task 里跑，等它完成
+        try? await Task.sleep(for: .milliseconds(150))
+
+        #expect(downloader.requestedNames == ["IceShot-v9.9.9.dmg"])
+        #expect(presenter.finishedURLs == [savedURL])
+        #expect(presenter.downloadFailureCalls == 0)
+    }
+
+    /// 校验失败要报错，且**不**走保存面板。
+    @MainActor
+    @Test func checksumMismatchReportsFailureWithoutSaving() async {
+        let downloader = FakeDownloader(result: .failure(.checksumMismatch))
+        let presenter = FakePresenter()
+        presenter.choice = .downloadInApp
+        presenter.saveDestination = URL(fileURLWithPath: "/tmp/should-not-save.dmg")
+
+        let checker = UpdateChecker(
+            fetch: FakeFetcher(result: .success(Self.makeRelease(tag: "v9.9.9", withDiskImage: true))),
+            defaults: makeDefaults(),
+            presenter: presenter,
+            downloader: downloader,
+            currentVersion: SemanticVersion(tag: "0.3.1")
+        )
+
+        await checker.checkNow()
+        try? await Task.sleep(for: .milliseconds(150))
+
+        #expect(presenter.downloadFailureCalls == 1)
+        #expect(presenter.finishedURLs.isEmpty)
+    }
+
+    /// 没有下载器时界面不能提供「立即下载」，选到它要降级到网页而不是静默失败。
+    @MainActor
+    @Test func downloadChoiceWithoutDownloaderFallsBackToWeb() async {
+        let presenter = FakePresenter()
+        presenter.choice = .downloadInApp
+
+        let checker = UpdateChecker(
+            fetch: FakeFetcher(result: .success(Self.makeRelease(tag: "v9.9.9", withDiskImage: true))),
+            defaults: makeDefaults(),
+            presenter: presenter,
+            downloader: nil,
+            currentVersion: SemanticVersion(tag: "0.3.1")
+        )
+
+        await checker.checkNow()
+        try? await Task.sleep(for: .milliseconds(100))
+
+        // 降级：不报失败，也不声称完成。
+        #expect(presenter.downloadFailureCalls == 0)
+        #expect(presenter.finishedURLs.isEmpty)
+    }
+
+    /// 用户在保存面板取消 → 不提示完成，也不算失败。
+    @MainActor
+    @Test func cancellingSavePanelIsSilent() async {
+        let downloader = FakeDownloader(result: .success(URL(fileURLWithPath: "/tmp/x.dmg")))
+        let presenter = FakePresenter()
+        presenter.choice = .downloadInApp
+        presenter.saveDestination = nil
+
+        let checker = UpdateChecker(
+            fetch: FakeFetcher(result: .success(Self.makeRelease(tag: "v9.9.9", withDiskImage: true))),
+            defaults: makeDefaults(),
+            presenter: presenter,
+            downloader: downloader,
+            currentVersion: SemanticVersion(tag: "0.3.1")
+        )
+
+        await checker.checkNow()
+        try? await Task.sleep(for: .milliseconds(150))
+
+        #expect(presenter.finishedURLs.isEmpty)
+        #expect(presenter.downloadFailureCalls == 0)
     }
 }

@@ -7,10 +7,41 @@ import Observation
 /// 生产用 `AlertUpdatePresenter`，测试注入一个只记下「要求展示什么」的实现。
 @MainActor
 protocol UpdatePresenting {
-    /// 发现新版本；返回用户是否选择「前往下载」。
-    func presentUpdate(version: String, notes: String, channelTag: String?) -> Bool
+    /// 发现新版本。
+    /// - Returns: 用户的选择；下载器不可用时由实现自己降级到网页。
+    func presentUpdate(
+        version: String,
+        notes: String,
+        channelTag: String?,
+        canDownloadInApp: Bool
+    ) -> UpdateChoice
     func presentUpToDate(currentVersion: String, channelTag: String?)
     func presentFailure()
+    /// 下载失败。`canOpenWeb` 为 true 时提示里会给出网页下载入口。
+    func presentDownloadFailure(_ error: UpdateDownloadError)
+    /// 下载完成，让用户在 Finder 里看到文件。
+    func presentDownloadFinished(at url: URL)
+    /// 下载过程中的进度面板；返回的句柄用于更新与关闭。
+    func presentDownloadProgress(fileName: String) -> UpdateProgressPresentation
+    /// 让用户选保存位置并搬过去；返回 `nil` 表示用户取消。
+    func presentSavePanel(suggestedName: String, sourceURL: URL) -> URL?
+}
+
+/// 用户在更新弹窗里的选择。
+enum UpdateChoice: Equatable {
+    /// 应用内下载（仅当 `canDownloadInApp` 为 true 时可能出现）。
+    case downloadInApp
+    /// 打开发布页自行下载。
+    case openWeb
+    /// 先不更新，本版本不再提示。
+    case later
+}
+
+/// 进度面板控制句柄。
+@MainActor
+protocol UpdateProgressPresentation {
+    func update(fraction: Double?)
+    func dismiss()
 }
 
 /// 更新检查的编排者：决定何时查、查到什么算新版本、要不要打扰用户。
@@ -36,6 +67,8 @@ final class UpdateChecker {
     private let fetch: ReleaseFetching
     private let defaults: UserDefaults
     private let presenter: UpdatePresenting
+    /// 为 `nil` 时界面不提供应用内下载（例如无法定位临时目录）。
+    private let downloader: (any UpdateDownloading)?
     private let now: @Sendable () -> Date
     /// 当前构建版本，构造时取一次即可（运行期不会变，也保证单测可控）。
     private let currentVersion: SemanticVersion?
@@ -53,12 +86,14 @@ final class UpdateChecker {
         fetch: ReleaseFetching = GitHubReleaseClient(),
         defaults: UserDefaults = .standard,
         presenter: UpdatePresenting,
+        downloader: (any UpdateDownloading)? = nil,
         currentVersion: SemanticVersion? = SemanticVersion(tag: AppVersion.shortVersion),
         now: @escaping @Sendable () -> Date = { Date() }
     ) {
         self.fetch = fetch
         self.defaults = defaults
         self.presenter = presenter
+        self.downloader = downloader
         self.currentVersion = currentVersion
         self.now = now
         self.isEnabled = defaults.object(forKey: UpdatePreferences.enabledKey) as? Bool
@@ -151,17 +186,58 @@ final class UpdateChecker {
     // MARK: - 弹窗
 
     private func presentUpdate(_ release: RemoteRelease, version: SemanticVersion) {
-        let didOpen = presenter.presentUpdate(
+        let asset = release.diskImage
+        let choice = presenter.presentUpdate(
             version: version.displayText,
             notes: ReleaseNotesText.condensed(release.notes),
-            channelTag: AppVersion.channel.tag
+            channelTag: AppVersion.channel.tag,
+            canDownloadInApp: asset != nil && downloader != nil
         )
 
-        if didOpen {
+        switch choice {
+        case .openWeb:
             NSWorkspace.shared.open(release.htmlURL)
-        } else {
+        case .downloadInApp:
+            guard let asset, let downloader else {
+                // 理论上不会走到：`canDownloadInApp` 已拦过。降级到网页，不静默失败。
+                NSWorkspace.shared.open(release.htmlURL)
+                return
+            }
+            Task { await download(asset, using: downloader) }
+        case .later:
             // 「稍后」= 这一版不再打扰；发新版照常提示。
             skippedVersion = version
         }
+    }
+
+    // MARK: - 应用内下载
+
+    /// 下载 → 校验 → 另存 → 提示。
+    ///
+    /// 任一步失败都保留在临时目录外不被使用：校验不通过的包会先删除再报错。
+    private func download(_ asset: ReleaseAsset, using downloader: any UpdateDownloading) async {
+        let progress = presenter.presentDownloadProgress(fileName: asset.name)
+        defer { progress.dismiss() }
+
+        let localURL: URL
+        // 把进度句柄先装进一个线程安全的盒子，回调里只拿盒子，不碰 `self`。
+        let progressBox = ProgressHandleBox(progress)
+        do {
+            localURL = try await downloader.download(asset) { fraction in
+                progressBox.update(fraction)
+            }
+        } catch let error as UpdateDownloadError {
+            presenter.presentDownloadFailure(error)
+            return
+        } catch {
+            presenter.presentDownloadFailure(.failed)
+            return
+        }
+
+        // 另存到用户选的位置；用户取消就默默结束（包已被临时目录接管，无需额外处理）。
+        guard let savedURL = presenter.presentSavePanel(suggestedName: asset.name, sourceURL: localURL) else {
+            return
+        }
+        presenter.presentDownloadFinished(at: savedURL)
     }
 }

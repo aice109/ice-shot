@@ -90,22 +90,57 @@ struct GitHubReleaseClient: ReleaseFetching {
         return RemoteRelease(
             tagName: payload.tagName,
             htmlURL: htmlURL,
-            notes: payload.body ?? ""
+            notes: payload.body ?? "",
+            diskImage: Self.diskImage(in: payload.assets)
+        )
+    }
+
+    /// 挑选 `.dmg` 资产，并配上同名 `.sha256` 文件的地址。
+    ///
+    /// 找不到 `.dmg` 就返回 `nil`：调用侧会退回网页下载，不猜到别的文件类型。
+    /// 校验值本身在下载完 `.sha256` 后才解析（需要发一次小请求），
+    /// 所以这里只带地址，不带值。
+    static func diskImage(in assets: [Payload.Asset]) -> ReleaseAsset? {
+        guard let dmg = assets.first(where: { $0.name.lowercased().hasSuffix(".dmg") }),
+              let dmgURL = URL(string: dmg.browserDownloadURL)
+        else {
+            return nil
+        }
+
+        let checksumAsset = assets.first { $0.name == dmg.name + ".sha256" }
+        let checksumTextURL = checksumAsset.flatMap { URL(string: $0.browserDownloadURL) }
+
+        return ReleaseAsset(
+            name: dmg.name,
+            url: dmgURL,
+            checksumTextURL: checksumTextURL
         )
     }
 
     /// 只解码用得到的字段；缺失的 `body` 用 `nil` 兜住，不当成错误。
-    private struct Payload: Decodable {
+    struct Payload: Decodable {
         let tagName: String
         let htmlURL: String
         let body: String?
         let draft: Bool
+        let assets: [Asset]
+
+        struct Asset: Decodable {
+            let name: String
+            let browserDownloadURL: String
+
+            enum CodingKeys: String, CodingKey {
+                case name
+                case browserDownloadURL = "browser_download_url"
+            }
+        }
 
         enum CodingKeys: String, CodingKey {
             case tagName = "tag_name"
             case htmlURL = "html_url"
             case body
             case draft
+            case assets
         }
     }
 }

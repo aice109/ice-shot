@@ -55,7 +55,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.editor = editor
         self.pins = pins
         self.feedback = feedback
-        self.updates = UpdateChecker(presenter: AlertUpdatePresenter())
+        // 应用内下载写沙盒临时目录，由历史库的路径布局提供；拿不到路径时
+        // 不传下载器，界面自然只保留网页下载。
+        let downloader: (any UpdateDownloading)? = runtime.map {
+            URLSessionUpdateDownloader(tempDirectory: $0.paths.tempDirectory)
+        }
+        self.updates = UpdateChecker(
+            presenter: AlertUpdatePresenter(),
+            downloader: downloader
+        )
         self.modelContainer = runtime?.container
         self.library = runtime?.store
         self.startupError = startupError
