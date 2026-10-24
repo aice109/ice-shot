@@ -37,12 +37,6 @@ build/
 /TestOutput/
 *.iceshot-test.png
 
-# 本地维护文档（不随仓库发布，仅本机使用）
-/AGENTS.md
-/docs/工程规范.md
-/docs/界面规范.md
-/docs/项目现状.md
-
 # 密钥与签名材料（绝不提交；证书由本机钥匙串管理，不进仓库）
 *.p12
 *.cer
