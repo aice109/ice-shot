@@ -170,7 +170,7 @@ Scripts/package.sh               # 出 DMG + SHA-256，写在仓库根目录（�
 1. `Scripts/gate.sh` 绿。
 2. `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` 已改，与 `AppVersion.swift` 一致。
 3. `CHANGELOG.md` 已加对应版本条目，分组按上一节选。
-4. **`docs/roadmap.md` 的 ✅ 清单已同步**——新完成的能力补进去，取消的项标 ❌ 并留档。
+4. **`docs/roadmap.md` 已同步**——新完成的能力从「🔜 待办」移到「✅ 已完成」，取消的项移到「❌ 已取消」并留档，优先级列顺手复核。
 5. `docs/roadmap.md` 若有「测试数量」一类易腐烂数字，同日核对（或改为指向 `gate.sh`）。
 6. 打 tag：`v<版本号>-beta.N`。
 
