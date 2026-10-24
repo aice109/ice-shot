@@ -15,18 +15,31 @@ struct MarkupToolbarLayoutTests {
     func overlayHasNoCropTool() {
         #expect(!MarkupToolbarLayout.tools(showsCropTool: false).contains(.crop))
         #expect(MarkupToolbarLayout.tools(showsCropTool: false).count
-            == EditorTool.allCases.count - 1)
+            == EditorTool.allCases.filter(\.appearsOnToolbar).count - 1)
     }
 
     @Test("编辑器窗口含裁剪")
     func editorHasCropTool() {
-        #expect(MarkupToolbarLayout.tools(showsCropTool: true) == EditorTool.allCases)
+        #expect(MarkupToolbarLayout.tools(showsCropTool: true) == EditorTool.allCases.filter(\.appearsOnToolbar))
+        #expect(MarkupToolbarLayout.tools(showsCropTool: true).contains(.crop))
     }
 
     @Test("工具顺序沿用 allCases，不因过滤改变相对顺序")
     func toolOrderFollowsAllCases() {
-        let expected = EditorTool.allCases.filter { $0 != .crop }
+        let expected = EditorTool.allCases.filter { $0.appearsOnToolbar && $0 != .crop }
         #expect(MarkupToolbarLayout.tools(showsCropTool: false) == expected)
+    }
+
+    @Test("「选择」是无工具哨兵，永远不出现在操作条上")
+    func selectNeverAppearsOnToolbar() {
+        // 它没有 `annotationKind`，只是「当前不画东西」的内部状态。
+        // 它的图标（`cursorarrow`）与箭头工具（`arrow.up.right`）太像，放到操作条上会让人分不清。
+        #expect(EditorTool.select.appearsOnToolbar == false)
+        #expect(!MarkupToolbarLayout.tools(showsCropTool: true).contains(.select))
+        #expect(!MarkupToolbarLayout.tools(showsCropTool: false).contains(.select))
+        for group in EditorTool.Group.allCases {
+            #expect(EditorTool.tools(in: group).filter(\.appearsOnToolbar).contains(.select) == false)
+        }
     }
 
     @Test("增强组在浮层里有工具，不该被隐藏")

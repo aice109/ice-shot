@@ -86,14 +86,18 @@ enum MarkupToolbarLayout {
         }
     }
 
-    /// 工具组里要显示的工具（浮层不含裁剪）。
+    /// 工具组里要显示的工具（浮层不含裁剪，两处都不含「无工具」哨兵）。
     static func tools(showsCropTool: Bool) -> [EditorTool] {
-        EditorTool.allCases.filter { showsCropTool || $0 != .crop }
+        EditorTool.allCases.filter { tool in
+            tool.appearsOnToolbar && (showsCropTool || tool != .crop)
+        }
     }
 
     /// 该分组在当前入口下有没有可显示的工具（增强组为空时不插入空段）。
     static func shows(_ group: EditorTool.Group, showsCropTool: Bool) -> Bool {
-        !EditorTool.tools(in: group).filter { showsCropTool || $0 != .crop }.isEmpty
+        !EditorTool.tools(in: group).filter {
+            $0.appearsOnToolbar && (showsCropTool || $0 != .crop)
+        }.isEmpty
     }
 
     /// 「变换」四项：编辑器窗口的旋转 / 翻转命令。

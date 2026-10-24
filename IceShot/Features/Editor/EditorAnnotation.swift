@@ -106,6 +106,12 @@ nonisolated struct EditorColor: Hashable, Sendable {
 }
 
 enum EditorTool: String, CaseIterable, Identifiable {
+    /// 「无工具」哨兵值，不是指针工具。
+    ///
+    /// 它没有 `annotationKind`，选它等于「当前不画任何东西」，画布照旧可以点选 / 拖动已有标注。
+    /// **它不出现在操作条上**（见 `appearsOnToolbar`）：那个位置留给真正的绘制工具，
+    /// 指针格与箭头工具图标太像，用户分不清哪个是「画箭头」哪个是「选中」。
+    /// 想回到这个状态按 `V`，或者再点一次当前已激活的工具把它熄灯。
     case select
     /// 裁剪不是标注工具：它在画布上操作图像本身的矩形范围（见 `EditorModel.cropRect`）。
     case crop
@@ -141,6 +147,20 @@ enum EditorTool: String, CaseIterable, Identifiable {
             return .drawing
         case .spotlight, .magnifier:
             return .enhancement
+        }
+    }
+
+    /// 这个工具要不要在操作条 / 工具栏上占一格。
+    ///
+    /// `select` 是「无工具」哨兵，只在交互语义上存在，不给按钮——它是第一格时的
+    /// `cursorarrow` 和箭头工具 `arrow.up.right` 太像，真机上分不清。
+    var appearsOnToolbar: Bool {
+        switch self {
+        case .select: return false
+        case .crop, .rectangle, .ellipse, .line, .arrow,
+             .freehand, .highlighter, .text, .number, .pixelate,
+             .spotlight, .magnifier:
+            return true
         }
     }
 

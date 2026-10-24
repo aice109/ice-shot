@@ -356,7 +356,15 @@ struct MarkupToolbar: View {
     private func toolButton(_ tool: EditorTool) -> some View {
         let isCurrent = tool == model.tool
         return Button {
-            // 点击工具 = 选中它 + 弹出它自己的二级选项；选择工具没有选项，就不弹。
+            // 再点一次已激活的工具 = 煜灯回到「无工具」态。
+            // 指针格已经不在操作条上，这是鼠标用户唯一能退出当前工具的路径（键盘走 `V`）。
+            // `crop` 不参与：它有自己完整的进 / 出流程（见 `EditorModel.applyCrop` / `cancelCrop`）。
+            if isCurrent, tool != .crop {
+                model.setTool(.select)
+                model.setOptionsTarget(nil)
+                return
+            }
+            // 点击工具 = 选中它 + 弹出它自己的二级选项；无选项的工具（如裁剪）就不弹。
             model.setTool(tool)
             let options = EditorToolOptions(tool: tool)
             model.setOptionsTarget(options.isPresented ? .tool(tool) : nil)
@@ -367,9 +375,16 @@ struct MarkupToolbar: View {
         }
         // 选中态用强调色玻璃（`.glassProminent`），不靠半透明灰差——最透玻璃下也一眼可辨。
         .glassControlStyle(prominent: isCurrent)
-        .help(tool.shortcut.map { "\(tool.title)（\(String($0).uppercased())）" } ?? tool.title)
+        .help(toolHelp(tool))
         .accessibilityLabel(tool.title)
         .accessibilityAddTraits(isCurrent ? [.isSelected] : [])
+    }
+
+    /// 工具提示：带快捷键，并告诉用户再点一次会退出该工具。
+    private func toolHelp(_ tool: EditorTool) -> String {
+        let base = tool.shortcut.map { "\(tool.title)（\(String($0).uppercased())）" } ?? tool.title
+        guard tool == model.tool, tool != .crop else { return base }
+        return "\(base)，再点一次退出"
     }
 
     private func iconButton(
