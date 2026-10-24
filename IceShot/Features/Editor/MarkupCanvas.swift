@@ -357,27 +357,33 @@ struct MarkupCanvas: View {
             return
         }
 
-        if model.tool == .select {
-            if let hit {
-                model.select(hit.id)
-                setCursor(.closedHand)
-                interaction = .moving(
-                    id: hit.id,
-                    original: hit,
-                    originalAnnotations: model.annotations,
-                    start: point
-                )
-            } else {
-                model.clearSelection()
-                interaction = .idle
-            }
+        // 命中已有标注 = 拖它，**任何工具下都一样**。
+        //
+        // 指针格已经从操作条上移除（见 `EditorTool.appearsOnToolbar`），再要求用户
+        // 先按 `V` 切回无工具态才能拖标注，就相当于把拖动这道动作藏起来了。
+        // 代价：不能直接在已有标注上起笔画新东西，得从空白处起手——标注都是细线条，
+        // 周围空白充足，这个损失比“刚画完的框拖不动”小得多。
+        //
+        // 例外：文字工具点在已有文字上 → 进编辑（与双击同一去向，见 `editExistingText`）。
+        if let hit, !(model.tool == .text && hit.kind == .text) {
+            model.select(hit.id)
+            setCursor(.closedHand)
+            interaction = .moving(
+                id: hit.id,
+                original: hit,
+                originalAnnotations: model.annotations,
+                start: point
+            )
             return
         }
 
+        // 无工具态（`V`）：空白处点一下就是清选中，不做别的。
         guard model.tool.annotationKind != nil else {
+            model.clearSelection()
             interaction = .idle
             return
         }
+
         // 绘制时不保留旧选中框；是否新选中由松手时的判定决定。
         model.clearSelection()
         draft = nil
@@ -464,8 +470,10 @@ struct MarkupCanvas: View {
                 // 文字工具：单击定位，命中已有文字则直接改它。
                 beginTextEditing(at: start, existing: hittingText(hitID))
             } else if let hitID {
-                // 单击已有标注：只选中它。工具**保持不动**——指针格已经不在操作条上，
-                // 再自动跳回 `select` 在界面上只表现为「当前工具高亮无声地没了」，像是 bug。
+                // 兜底：单击命中已有标注但没产生图形（没超过最小位移）。
+                // 正常情况下这种点击在 `begin` 里就走了 `.moving`，到不了这里；
+                // 保留是为了“点一下旧标注就选中它”这个预期不会因上游改判据而丢。
+                // 工具**保持不动**，不自动跳回 `select`。
                 model.select(hitID)
             }
             draft = nil
@@ -718,6 +726,7 @@ struct MarkupCanvas: View {
         // 拖拽中的光标由拖拽流程自己维护（closedHand）。
         guard case .idle = interaction else { return }
 
+        // 裁剪的三态（手柄 / 框内 / 框外）比通用规则细，先单独判完。
         if model.tool == .crop {
             guard let crop = model.cropRect else {
                 setCursor(.crosshair)
@@ -735,15 +744,15 @@ struct MarkupCanvas: View {
             return
         }
 
-        if model.tool == .select, hoveredAnnotation(at: location, layout: layout) != nil {
-            setCursor(.openHand)
-        } else if isPaintTool, hoverPoint != nil {
-            setCursor(.crosshair)
-        } else {
-            setCursor(.arrow)
-        }
+        // 其余全交给 `MarkupCursorRule`，规则与 `ui-guidelines.md` 的表格一一对应。
+        setCursor(MarkupCursorRule.cursor(for: MarkupCursorRule.Input(
+            tool: model.tool,
+            isInsideImage: layout.imageRect.contains(location),
+            isOverAnnotation: hoveredAnnotation(at: location, layout: layout) != nil,
+            isDragging: false,
+            isMovingAnnotation: false
+        )))
     }
-
     private func hoveredAnnotation(
         at viewPoint: CGPoint,
         layout: EditorCanvasLayout
