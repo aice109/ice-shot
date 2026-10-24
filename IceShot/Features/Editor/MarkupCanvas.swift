@@ -305,7 +305,10 @@ struct MarkupCanvas: View {
     }
 
     private func quickCopy(at point: CGPoint) {
-        guard model.tool == .select, model.annotations.isEmpty else { return }
+        // 不判工具：之前只在「无工具」态生效，但指针格已经不在操作条上，
+        // 用户基本不会停留在那个隐藏状态，这条快速复制等于永远不触发。
+        // 「一条标注都没有」才是真正的意图判定——那时双击空白只可能是想直接拿走截图。
+        guard model.annotations.isEmpty else { return }
         if let interactionRect, !interactionRect.contains(point) {
             return
         }
@@ -461,9 +464,9 @@ struct MarkupCanvas: View {
                 // 文字工具：单击定位，命中已有文字则直接改它。
                 beginTextEditing(at: start, existing: hittingText(hitID))
             } else if let hitID {
-                // 单击已有标注：选中它，并切到「选择」工具，方便接着拖动 / 删除。
+                // 单击已有标注：只选中它。工具**保持不动**——指针格已经不在操作条上，
+                // 再自动跳回 `select` 在界面上只表现为「当前工具高亮无声地没了」，像是 bug。
                 model.select(hitID)
-                model.setTool(.select)
             }
             draft = nil
         case .moving(_, _, let originalAnnotations, _):
