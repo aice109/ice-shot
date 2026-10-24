@@ -19,6 +19,8 @@ enum PointerCursor: Equatable {
     case closedHand
     /// 绘制 / 拉新框。
     case crosshair
+    /// 文本输入：文字工具下悬停可用“这里可以打字”。
+    case iBeam
     /// 可整块搬走（贴图这类「挪动窗口」语义）。
     ///
     /// 具体映射到 `openHand`：AppKit 没有公开的四向移动箭头，手形才是系统里的
@@ -39,6 +41,8 @@ enum PointerCursor: Equatable {
             return .closedHand
         case .crosshair:
             return .crosshair
+        case .iBeam:
+            return .iBeam
         case .move:
             // AppKit 没有公开的「四向移动箭头」（只有私有 `_moveCursor`），
             // 用公开的 `openHand`：它表达的就是「这整块可以抓走」。
