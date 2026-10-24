@@ -15,7 +15,7 @@
 
 [**下载最新版**](https://github.com/aice109/ice-shot/releases/latest) ·
 [更新日志](CHANGELOG.md) ·
-[路线图](docs/路线图.md)
+[路线图](docs/roadmap.md)
 
 </div>
 
@@ -66,7 +66,7 @@
 - 开机自启动
 - 屏幕录制权限引导（一键申请 / 跳转系统设置 / 重启）
 
-完整能力与后续计划见 [路线图](docs/路线图.md)，版本变更见 [CHANGELOG](CHANGELOG.md)。
+完整能力与后续计划见 [路线图](docs/roadmap.md)，版本变更见 [CHANGELOG](CHANGELOG.md)。
 
 ---
 
