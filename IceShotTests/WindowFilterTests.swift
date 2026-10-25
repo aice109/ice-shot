@@ -148,12 +148,14 @@ struct WindowFilterTests {
         let desktop = window(id: 1, ownerName: "访达", title: nil, layer: -2147483603)
         #expect(desktop.isSystemSurface)
         #expect(desktop.isDesktopSurface)
-        #expect(desktop.displayName == "桌面")
+        // 断言「显示名就是那条已本地化的文案」，而不是钉死某种语言的字符串：
+        // 测试进程跑在中文还是英文取决于系统与 App 的语言设置，钉死会让门禁随环境变色。
+        #expect(desktop.displayName == String(localized: "桌面"))
 
         let menubar = window(id: 2, ownerName: "", title: nil, layer: 24)
         #expect(menubar.isSystemSurface)
         #expect(menubar.isMenuBarSurface)
-        #expect(menubar.displayName == "菜单栏")
+        #expect(menubar.displayName == String(localized: "菜单栏"))
 
         let normal = window(id: 3)
         #expect(!normal.isSystemSurface)

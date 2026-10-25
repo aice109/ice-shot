@@ -92,7 +92,7 @@ struct HotkeyBindingTests {
         let restored = makeManager(defaults: defaults)
         defer { restored.unregisterAll() }
         #expect(restored.bindings[.region] == nil)
-        #expect(restored.label(for: .region) == "未设置")
+        #expect(restored.label(for: .region) == String(localized: "未设置"))
         #expect(restored.bindings[.repeatRegion] == custom)
         // 未改动的动作仍取默认值。
         #expect(restored.label(for: .fullScreen) == "⇧⌘F")

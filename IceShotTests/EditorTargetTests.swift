@@ -38,7 +38,8 @@ struct EditorTargetTests {
     @Test("收藏态的提示说清要先取消收藏")
     func favoriteHelpExplainsWhy() {
         let help = EditorTarget.history(recordID: recordID, isFavorite: true).deleteHelp
-        #expect(help.contains("取消收藏"))
+        // 断言完整文案，而不是半截词：英文表里只有整句的对应条目。
+        #expect(help == String(localized: "已收藏的截图不会被自动清理，请先取消收藏再删除"))
     }
 
     @Test("可删状态把快捷键写进提示")

@@ -31,7 +31,9 @@ struct MenuBarView: View {
             footer
         }
         .padding(14)
-        .frame(width: 320)
+        // 英文文案普遍比中文长 1.5～2 倍（「全屏截图」→ "Full Screen Capture"），
+        // 320 pt 会把标题椭掉。按当前运行语言给宽度：中文紧凑、英文宽松。
+        .frame(width: Self.panelWidth)
         .onAppear {
             coordinator.refreshPermission()
         }
@@ -41,6 +43,15 @@ struct MenuBarView: View {
     }
 
     // MARK: - 头部
+
+    /// 面板宽度按**当前生效**的界面语言取。
+    ///
+    /// 用 `Bundle.preferredLocalizations` 而不是系统语言：用户可能在设置里
+    /// 把 IceShot 单独指定成英文，而系统是中文，那时按系统语言算宽度就会截断。
+    private static var panelWidth: CGFloat {
+        let isEnglish = Bundle.main.preferredLocalizations.first?.hasPrefix("en") ?? false
+        return isEnglish ? 380 : 320
+    }
 
     private var header: some View {
         HStack(alignment: .center, spacing: 10) {
@@ -260,20 +271,28 @@ struct MenuBarView: View {
         }
     }
 
+    /// 截图按钮的标题 + 右侧快捷键。
+    ///
+    /// 标题走 `LocalizedStringKey`：英文文案普遍比中文长（「区域截图」→ "Region Capture"），
+    /// 所以标题给 `lineLimit(1)` 并允许它比快捷键占更多宽度；
+    /// 快捷键固定宽度、不参与压缩，否则先被椭掉的一定是它。
     private func actionLabel(
-        _ title: String,
+        _ title: LocalizedStringKey,
         symbol: String,
         shortcut: String?
     ) -> some View {
         HStack(spacing: 6) {
             Label(title, systemImage: symbol)
                 .lineLimit(1)
+                .truncationMode(.tail)
             Spacer(minLength: 2)
             if let shortcut {
                 Text(shortcut)
                     .font(.caption2)
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .fixedSize()
             }
         }
         .frame(maxWidth: .infinity)
@@ -333,38 +352,48 @@ struct MenuBarView: View {
     }
 
     private var footer: some View {
-        HStack(spacing: 12) {
-            // 不用 `SettingsLink`：它只负责显示窗口，不负责激活 App，
-            // 菜单栏应用里窗口会掉到其它 App 后面。
-            Button {
-                openSettingsWindow()
-            } label: {
-                Label("设置…", systemImage: "gearshape")
-            }
-            .buttonStyle(.borderless)
-            .help("打开设置（⌘,）")
+        // 英文文案比中文长很多（「获取新版本…」→ "Get New Version…"），
+        // 三个按钮挤一行时最后那个会被椭成「...」。所以改成两行：
+        // 上行放「设置 / 更新」（可换行、不会被裁），下行单独放「退出」，
+        // 每个按钮都 `fixedSize` 不参与压缩——宁可换行，不要省略号。
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 12) {
+                Button {
+                    openSettingsWindow()
+                } label: {
+                    Label("设置…", systemImage: "gearshape")
+                        .lineLimit(1)
+                        .fixedSize()
+                }
+                .buttonStyle(.borderless)
+                .help("打开设置（⌘,）")
 
-            // 更新检查已移除：App 不联网，“怎么更新”只能靠用户主动去发布页。
-            Button {
-                closeMenuBarPanel()
-                NSWorkspace.shared.open(ProjectLinks.latestRelease)
-            } label: {
-                Label("获取新版本…", systemImage: "arrow.up.right.square")
-            }
-            .buttonStyle(.borderless)
-            .help("在浏览器里打开最新版本的发布页（IceShot 自身不联网）")
+                Button {
+                    closeMenuBarPanel()
+                    NSWorkspace.shared.open(ProjectLinks.latestRelease)
+                } label: {
+                    Label("获取新版本…", systemImage: "arrow.up.right.square")
+                        .lineLimit(1)
+                        .fixedSize()
+                }
+                .buttonStyle(.borderless)
+                .help("在浏览器里打开最新版本的发布页（IceShot 自身不联网）")
 
-            Spacer(minLength: 0)
+                Spacer(minLength: 0)
+            }
 
             Button {
                 NSApplication.shared.terminate(nil)
             } label: {
                 Label("退出 IceShot", systemImage: "power")
+                    .lineLimit(1)
+                    .fixedSize()
             }
             .buttonStyle(.borderless)
             .help("退出 IceShot")
         }
         .font(.callout)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: - 动作

@@ -80,7 +80,9 @@ struct LaunchAtLoginTests {
         // 失败后不能显示为已开启：开关回滚，原因交给界面。
         #expect(!model.isEnabled)
         #expect(service.state == .disabled)
-        #expect(model.failureMessage?.contains("系统拒绝了这次注册") == true)
+        // 失败文案里带了系统错误描述与错误码（运行时拼出来），所以这里只验
+        // 「确实有失败提示」且「带上了自己的前缀」，不钉死整句。
+        #expect(model.failureMessage?.contains("设置开机自启动失败") == true)
     }
 
     @Test func unregisterFailureKeepsToggleOn() {
@@ -97,7 +99,10 @@ struct LaunchAtLoginTests {
     @Test func requiresApprovalShowsHintAndSettingsButton() {
         let model = LaunchAtLoginModel(service: FakeService(state: .requiresApproval))
 
-        #expect(model.systemHint?.contains("登录项") == true)
+        #expect(
+            model.systemHint
+                == String(localized: "系统里这个登录项被关掉了：到「系统设置 > 通用 > 登录项」重新打开 IceShot。")
+        )
         #expect(model.showsSystemSettingsButton)
     }
 
@@ -123,7 +128,12 @@ struct LaunchAtLoginTests {
             bundlePath: "/private/var/folders/xy/AppTranslocation/ABC/d/IceShot.app"
         )
 
-        #expect(model.locationHint?.contains("应用程序") == true)
+        // 断言完整文案：这些提示都是单条本地化字符串，
+        // 用 `contains("应用程序")` 这种半截词在英文表里根本没有对应条目。
+        #expect(
+            model.locationHint
+                == String(localized: "当前是从下载目录直接打开的临时副本：先把 IceShot 拖到「应用程序」再打开，才能注册登录项。")
+        )
     }
 
     @Test func copyRunningFromDiskImageExplainsHowToFix() {
@@ -132,7 +142,10 @@ struct LaunchAtLoginTests {
             bundlePath: "/Volumes/IceShot/IceShot.app"
         )
 
-        #expect(model.locationHint?.contains("磁盘映像") == true)
+        #expect(
+            model.locationHint
+                == String(localized: "当前正在从磁盘映像里运行：先把 IceShot 拖到「应用程序」再打开，才能注册登录项。")
+        )
     }
 
     @Test func installedAppHasNoLocationHint() {

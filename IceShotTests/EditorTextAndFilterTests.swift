@@ -53,12 +53,12 @@ struct EditorTextAndFilterTests {
         var edited = original
         edited.text = "新文字"
         model.update(edited)
-        #expect(model.annotations.first?.text == "新文字")
+        #expect(model.annotations.first?.text == String(localized: "新文字"))
 
         model.undo()
-        #expect(model.annotations.first?.text == "旧")
+        #expect(model.annotations.first?.text == String(localized: "旧"))
         model.redo()
-        #expect(model.annotations.first?.text == "新文字")
+        #expect(model.annotations.first?.text == String(localized: "新文字"))
 
         model.delete(id: original.id)
         #expect(model.annotations.isEmpty)

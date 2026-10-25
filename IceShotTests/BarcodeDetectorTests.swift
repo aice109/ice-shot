@@ -19,7 +19,7 @@ struct BarcodeDetectorTests {
         let code = try #require(codes.first)
         #expect(code.payload == payload)
         #expect(code.isQRCode)
-        #expect(code.kindLabel == "二维码")
+        #expect(code.kindLabel == String(localized: "二维码"))
         // 归一化矩形应落在 0…1 内，且是左上原点坐标。
         #expect(code.normalizedRect.minX >= 0 && code.normalizedRect.maxX <= 1)
         #expect(code.normalizedRect.minY >= 0 && code.normalizedRect.maxY <= 1)

@@ -16,7 +16,7 @@ struct OCRPipelineTests {
         await runtime.store.ocrTask?.value
 
         let record = try #require(try records(in: runtime.container).first)
-        #expect(record.ocrText == "发票号码 12345")
+        #expect(record.ocrText == String(localized: "发票号码 12345"))
     }
 
     @Test func noTextKeepsRecordEmpty() async throws {
@@ -60,7 +60,7 @@ struct OCRPipelineTests {
         #expect(manual.canRecognizeText)
 
         #expect(await manual.recognizeText(for: record))
-        #expect(record.ocrText == "手动识别结果")
+        #expect(record.ocrText == String(localized: "手动识别结果"))
     }
 
     @Test func manualRecognitionWithoutRecognizerFails() async throws {

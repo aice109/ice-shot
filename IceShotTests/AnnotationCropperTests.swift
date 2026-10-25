@@ -83,7 +83,7 @@ struct AnnotationCropperTests {
             croppingTo: CGRect(x: 20, y: 20, width: 60, height: 60)
         )
         #expect(result.count == 1)
-        #expect(result.first?.text == "保留")
+        #expect(result.first?.text == String(localized: "保留"))
         #expect(result.first?.start == CGPoint(x: 30, y: 30))
     }
 
@@ -204,7 +204,8 @@ struct AnnotationCropperTests {
         #expect(model.image.width == 60)
         #expect(!model.canUndo)
         #expect(model.tool == .select)
-        #expect(model.statusMessage == "裁剪范围未变化")
+        // 对照已本地化的文案，不用钉死字面量——否则门禁结果会随运行语言变。
+        #expect(model.statusMessage == String(localized: "裁剪范围未变化"))
     }
 
     /// 整幅初始态下框内拖动必须是「拉新框」：否则拖动只是平移一个整幅大小的框，看起来像裁剪没反应。

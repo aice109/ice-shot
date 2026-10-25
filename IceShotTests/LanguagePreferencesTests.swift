@@ -75,6 +75,7 @@ struct LanguagePreferencesTests {
     /// 英文界面下 "English" 不能变成 "英语"——否则用户按当前界面语言去读会认不出来。
     @Test func languageNamesAreNotTranslated() {
         #expect(LanguagePreferences.Choice.english.displayName == "English")
+        // 这两项故意不本地化：语言名要用它自己的语言写，所以原样比对字面量。
         #expect(LanguagePreferences.Choice.simplifiedChinese.displayName == "简体中文")
     }
 
