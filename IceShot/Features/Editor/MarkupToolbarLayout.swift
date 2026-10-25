@@ -18,7 +18,18 @@ enum MarkupToolbarLayout {
     /// 胶囊之间的留白。
     static let clusterSpacing: CGFloat = 10
     /// 图标点击区：比字形大一圈，按钮之间才有呼吸。
-    static let iconSide: CGFloat = 18
+    ///
+    /// 20 pt 是 macOS 工具栏的常见光学尺寸；18 pt 下 `light.beacon.max`、
+    /// `plus.magnifyingglass` 这类多层字形会糊成一团。
+    static let iconSide: CGFloat = 20
+    /// 「更多」按钮的图标：始终是 `chevron.right`，靠**旋转 90°** 表达展开 / 收起。
+    ///
+    /// 用旋转而不是换图形：换 SF Symbol 是两个不同图标在跳，旋转才是一次连贯的形变。
+    static let moreSymbolName = "chevron.right"
+    /// 「更多」按钮的水平 padding：胶囊形比普通图标按钮宽，这是它「是容器不是工具」的形态信号。
+    static let moreButtonHorizontalPadding: CGFloat = 8
+    /// 「更多」按钮的高度：与图标点击区一致，保证胶囊不胖于方形按钮。
+    static let moreButtonHeight: CGFloat = iconSide + 8
 
     /// 操作条所在的位置。
     enum Context: Equatable, Sendable {
@@ -28,45 +39,87 @@ enum MarkupToolbarLayout {
         case editor
     }
 
-    /// 一条操作条上会出现的按钮，按展示顺序排列。
-    enum Item: String, CaseIterable, Sendable {
-        /// 一个工具（具体工具由 `EditorTool` 决定，这里只占一个位置）。
-        case tool
+    /// 工具胶囊里的一格（按展示顺序）。
+    ///
+    /// **顺序只在这份序列里写一次**。新增工具时改这里即可，`MarkupToolbar`
+    /// 只负责按序列渲染，不再自己从 `EditorTool` 的属性反推分组的排布。
+    enum Item: Equatable, Sendable {
+        /// 一个独占一格的工具（裁剪 / 箭头 / 文字 / 马赛克）。
+        case tool(EditorTool)
+        /// 一个多子型组按钮（形状 / 画笔 / 更多）。
+        case group(EditorTool.ToolGroup)
         /// 「变换」按钮：旋转 / 翻转四项（只给编辑器窗口）。
         case transform
         /// 「取字」。
         case textPicking
         /// 选中已有标注时的「该类型选项」按钮。
         case selectedOptions
-        /// 撤销。
-        case undo
-        /// 重做。
-        case redo
-        /// 复制（主操作，强调色）。
-        case copy
-        /// 保存。
-        case save
-        /// 贴图。
-        case pin
-        /// 关闭（只在浮层；编辑器窗口走标题栏的关闭按钮）。
-        case close
-
-        var isTool: Bool { self == .tool }
     }
 
-    /// 工具胶囊里的内容顺序：工具 → 变换 → 取字 → 选中态选项。
-    static let toolCluster: [Item] = [.tool, .transform, .textPicking, .selectedOptions]
-    /// 输出胶囊里的内容顺序：撤销 → 重做 → 复制 → 保存 → 贴图 → 关闭。
-    static let actionCluster: [Item] = [.undo, .redo, .copy, .save, .pin, .close]
+    /// 输出胶囊里的一格：撤销 → 重做 → 复制 → 保存 → 贴图 → 关闭。
+    enum OutputItem: Equatable, Sendable {
+        case undo
+        case redo
+        case copy
+        case save
+        case pin
+        case close
+    }
 
-    /// 某个入口、当前状态下应该出现哪些按钮。
+    /// 工具胶囊的内容顺序：
+    /// 选择 → 裁剪 → 形状▾ → 箭头 → 画笔▾ → 文字 → 马赛克 → [选中态选项] → 取字 → 变换 → 更多▾。
+    ///
+    /// 序号 / 聚光灯 / 放大镜 三项不单独占格，它们只在「更多」展开时出现——
+    /// 展开位置由 `group(.more)` 决定，展开内容来自 `EditorTool.ToolGroup.more.members`。
+    static let toolCluster: [Item] = [
+        .tool(.select),
+        .tool(.crop),
+        .group(.shape),
+        .tool(.arrow),
+        .group(.brush),
+        .tool(.text),
+        .tool(.pixelate),
+        .selectedOptions,
+        .textPicking,
+        .transform,
+        .group(.more),
+    ]
+
+    /// 输出胶囊的内容顺序。
+    static let actionCluster: [OutputItem] = [.undo, .redo, .copy, .save, .pin, .close]
+
+    /// 工具胶囊里独占一格的工具（按展示顺序，浮层不含裁剪）。
+    static func tools(showsCropTool: Bool) -> [EditorTool] {
+        toolCluster.compactMap { item in
+            guard case .tool(let tool) = item else { return nil }
+            return showsCropTool || tool != .crop ? tool : nil
+        }
+    }
+
+    /// 工具胶囊里要多子型组按钮的组（形状 / 画笔 / 更多）。
+    static func groups(showsCropTool: Bool) -> [EditorTool.ToolGroup] {
+        toolCluster.compactMap { item in
+            guard case .group(let group) = item else { return nil }
+            return shows(group, showsCropTool: showsCropTool) ? group : nil
+        }
+    }
+
+    /// 该多子型组在当前入口下有没有可显示的工具。
+    ///
+    /// 现有的三个组都不含裁剪，所以这里只看组本身是否为空；
+    /// 保留 `showsCropTool` 参数是为了将来把裁剪塞进组时不用改调用点。
+    static func shows(_ group: EditorTool.ToolGroup, showsCropTool: Bool) -> Bool {
+        _ = showsCropTool
+        return !group.members.isEmpty
+    }
+
+    /// 某个入口、当前状态下应该出现哪些**工具 capsule 的格子**。
     ///
     /// - Parameters:
     ///   - context: 入口（浮层 / 编辑器窗口）。
-    ///   - showsCropTool: 是否把「裁剪」放进工具组。就地浮层的选区本身就是裁剪范围，
+    ///   - showsCropTool: 是否把「裁剪」放进工具胶囊。就地浮层的选区本身就是裁剪范围，
     ///     再裁一次会让选区与图像坐标错位，所以浮层传 `false`。
     ///   - hasSelectedAnnotationOptions: 选中的标注有没有可调参数。
-    ///   - hasSelectedAnnotation: 当前是否选中了标注（有选中才可能出现「删除」）。
     static func items(
         in context: Context,
         showsCropTool: Bool,
@@ -74,30 +127,25 @@ enum MarkupToolbarLayout {
     ) -> [Item] {
         toolCluster.filter { item in
             switch item {
-            case .transform: return context == .editor
-            case .selectedOptions: return hasSelectedAnnotationOptions
-            default: return true
-            }
-        } + actionCluster.filter { item in
-            switch item {
-            case .close: return context == .overlay
-            default: return true
+            case .tool(let tool):
+                return showsCropTool || tool != .crop
+            case .group(let group):
+                return shows(group, showsCropTool: showsCropTool)
+            case .transform:
+                return context == .editor
+            case .selectedOptions:
+                return hasSelectedAnnotationOptions
+            case .textPicking:
+                return true
             }
         }
     }
 
-    /// 工具组里要显示的工具（浮层不含裁剪，两处都不含「无工具」哨兵）。
-    static func tools(showsCropTool: Bool) -> [EditorTool] {
-        EditorTool.allCases.filter { tool in
-            tool.appearsOnToolbar && (showsCropTool || tool != .crop)
+    /// 输出胶囊里当前状态应该出现的格子。
+    static func outputItems(in context: Context) -> [OutputItem] {
+        actionCluster.filter { item in
+            item != .close || context == .overlay
         }
-    }
-
-    /// 该分组在当前入口下有没有可显示的工具（增强组为空时不插入空段）。
-    static func shows(_ group: EditorTool.Group, showsCropTool: Bool) -> Bool {
-        !EditorTool.tools(in: group).filter {
-            $0.appearsOnToolbar && (showsCropTool || $0 != .crop)
-        }.isEmpty
     }
 
     /// 「变换」四项：编辑器窗口的旋转 / 翻转命令。

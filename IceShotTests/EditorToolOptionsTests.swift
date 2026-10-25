@@ -46,7 +46,7 @@ struct EditorToolOptionsTests {
 
     // MARK: - 选中已有标注时的选项
 
-    @Test("四种类型有选中态选项，其余没有")
+    @Test("形状 / 画笔族选中后能调粗细，序号没有专属参数")
     func selectedOptionsMapByKind() {
         #expect(EditorToolOptions.forKind(.text)?.showsTextBackground == true)
         #expect(EditorToolOptions.forKind(.pixelate)?.showsRedaction == true)
@@ -54,18 +54,53 @@ struct EditorToolOptionsTests {
         #expect(EditorToolOptions.forKind(.spotlight)?.showsSpotlight == true)
         #expect(EditorToolOptions.forKind(.magnifier)?.showsMagnifier == true)
 
-        for kind: AnnotationKind in [.rectangle, .ellipse, .line, .arrow, .freehand, .highlighter, .number] {
-            #expect(EditorToolOptions.forKind(kind) == nil)
+        // 形状与画笔族收进组合按钮后补齐了「选中后调粗细」。
+        for kind: AnnotationKind in [.rectangle, .ellipse, .line, .arrow, .freehand, .highlighter] {
+            #expect(EditorToolOptions.forKind(kind)?.widthRole == .line)
+            #expect(EditorToolOptions.isStrokeAdjustable(kind))
+        }
+
+        // 序号仍然没有专属参数。
+        #expect(EditorToolOptions.forKind(.number) == nil)
+        #expect(!EditorToolOptions.isStrokeAdjustable(.number))
+    }
+
+    @Test("选中态选项都不带颜色——颜色与粗细是一对「新标注默认值」的语义，不混进选中态")
+    func selectedOptionsDoNotDuplicateColor() {
+        for kind: AnnotationKind in [.text, .pixelate, .blur, .spotlight, .magnifier,
+                                     .rectangle, .ellipse, .line, .arrow, .freehand, .highlighter] {
+            #expect(EditorToolOptions.forKind(kind)?.showsColor == false)
         }
     }
 
-    @Test("选中态选项都不带颜色与粗细")
-    func selectedOptionsDoNotDuplicateColorOrWidth() {
-        for kind: AnnotationKind in [.text, .pixelate, .blur, .spotlight, .magnifier] {
-            let options = EditorToolOptions.forKind(kind)
-            #expect(options?.showsColor == false)
-            #expect(options?.widthRole == nil)
-        }
+    @Test("选中态调粗细：改的是那条标注，最终可撤销")
+    func adjustingWidthMutatesSelectedAnnotation() throws {
+        let model = try makeModel()
+        model.setTool(.rectangle)
+        model.add(EditorAnnotation(
+            kind: .rectangle,
+            start: CGPoint(x: 4, y: 4),
+            end: CGPoint(x: 30, y: 30),
+            style: AnnotationStyle(color: model.color, lineWidth: 6, opacity: 1)
+        ))
+        let id = try #require(model.annotations.first?.id)
+        model.select(id)
+
+        model.setWidth(14)
+        #expect(model.annotations[0].style.lineWidth == 14)
+
+        model.commitWidthChange()
+        #expect(model.canUndo)
+    }
+
+    @Test("没选中标注时改粗细只影响「以后新标注用什么」")
+    func adjustingWidthWithoutSelectionOnlyChangesDefault() throws {
+        let model = try makeModel()
+        model.setTool(.rectangle)
+        model.select(nil)
+        model.setWidth(20)
+        #expect(model.lineWidth == 20)
+        #expect(model.annotations.isEmpty)
     }
 
     @Test("浮窗取值：指向选中标注时读那条标注，否则读默认值")

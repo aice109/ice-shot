@@ -14,53 +14,77 @@ struct MarkupToolbarLayoutTests {
     @Test("浮层不含裁剪：选区本身就是裁剪范围")
     func overlayHasNoCropTool() {
         #expect(!MarkupToolbarLayout.tools(showsCropTool: false).contains(.crop))
-        #expect(MarkupToolbarLayout.tools(showsCropTool: false).count
-            == EditorTool.allCases.filter(\.appearsOnToolbar).count - 1)
-    }
-
-    @Test("编辑器窗口含裁剪")
-    func editorHasCropTool() {
-        #expect(MarkupToolbarLayout.tools(showsCropTool: true) == EditorTool.allCases.filter(\.appearsOnToolbar))
         #expect(MarkupToolbarLayout.tools(showsCropTool: true).contains(.crop))
     }
 
-    @Test("工具顺序沿用 allCases，不因过滤改变相对顺序")
-    func toolOrderFollowsAllCases() {
-        let expected = EditorTool.allCases.filter { $0.appearsOnToolbar && $0 != .crop }
-        #expect(MarkupToolbarLayout.tools(showsCropTool: false) == expected)
+    @Test("独占一格的工具：选择 / 裁剪 / 箭头 / 文字 / 马赛克")
+    func standaloneToolsAreExactlyFour() {
+        #expect(MarkupToolbarLayout.tools(showsCropTool: true)
+            == [.select, .crop, .arrow, .text, .pixelate])
+        #expect(MarkupToolbarLayout.tools(showsCropTool: false) == [.select, .arrow, .text, .pixelate])
     }
 
-    @Test("「选择」是无工具哨兵，永远不出现在操作条上")
-    func selectNeverAppearsOnToolbar() {
-        // 它没有 `annotationKind`，只是「当前不画东西」的内部状态。
-        // 它的图标（`cursorarrow`）与箭头工具（`arrow.up.right`）太像，放到操作条上会让人分不清。
-        #expect(EditorTool.select.appearsOnToolbar == false)
-        #expect(!MarkupToolbarLayout.tools(showsCropTool: true).contains(.select))
-        #expect(!MarkupToolbarLayout.tools(showsCropTool: false).contains(.select))
-        for group in EditorTool.Group.allCases {
-            #expect(EditorTool.tools(in: group).filter(\.appearsOnToolbar).contains(.select) == false)
+    @Test("「选择」占操作条第一格：它是看得见、点得到的显式退出路径")
+    func selectIsFirstAndAlwaysPresent() {
+        #expect(MarkupToolbarLayout.tools(showsCropTool: true).first == .select)
+        #expect(MarkupToolbarLayout.tools(showsCropTool: false).first == .select)
+        // 它不属任何组，否则会被组按钮吞掉。
+        for group in EditorTool.ToolGroup.allCases {
+            #expect(!group.members.contains(.select))
         }
+        #expect(EditorTool.select.toolGroup == nil)
     }
 
-    @Test("增强组在浮层里有工具，不该被隐藏")
-    func enhancementGroupIsVisible() {
-        #expect(MarkupToolbarLayout.shows(.enhancement, showsCropTool: false))
-        #expect(MarkupToolbarLayout.shows(.drawing, showsCropTool: false))
+    @Test("组按钮：形状 / 画笔 / 更多 都出现")
+    func allGroupsAppear() {
+        #expect(MarkupToolbarLayout.groups(showsCropTool: false) == [.shape, .brush, .more])
+        #expect(MarkupToolbarLayout.groups(showsCropTool: true) == [.shape, .brush, .more])
+    }
+
+    @Test("每个组都有可显示的工具，不会出现空组按钮")
+    func noGroupIsEmpty() {
+        for group in EditorTool.ToolGroup.allCases {
+            #expect(MarkupToolbarLayout.shows(group, showsCropTool: false))
+            #expect(!group.members.isEmpty)
+        }
     }
 
     // MARK: - 按钮清单
 
-    @Test("浮层：有图取字与关闭，没有变换与选中态选项（默认无选中）")
+    @Test("工具胶囊顺序：选择 → 裁剪 → 形状 → 箭头 → 画笔 → 文字 → 马赛克 → 取字 → 变换 → 更多")
+    func toolClusterOrder() {
+        let items = MarkupToolbarLayout.items(
+            in: .editor,
+            showsCropTool: true,
+            hasSelectedAnnotationOptions: false
+        )
+        #expect(items == [
+            .tool(.select),
+            .tool(.crop),
+            .group(.shape),
+            .tool(.arrow),
+            .group(.brush),
+            .tool(.text),
+            .tool(.pixelate),
+            .textPicking,
+            .transform,
+            .group(.more)
+        ])
+    }
+
+    @Test("浮层：没有裁剪与变换，选中态无参数时也没有选项按钮")
     func overlayItems() {
         let items = MarkupToolbarLayout.items(
             in: .overlay,
             showsCropTool: false,
             hasSelectedAnnotationOptions: false
         )
-        #expect(items.contains(.textPicking))
-        #expect(items.contains(.close))
+        #expect(!items.contains(.tool(.crop)))
+        #expect(items.first == .tool(.select))
         #expect(!items.contains(.transform))
         #expect(!items.contains(.selectedOptions))
+        #expect(items.contains(.textPicking))
+        #expect(MarkupToolbarLayout.outputItems(in: .overlay).contains(.close))
     }
 
     @Test("编辑器：有变换，没有关闭（关闭走标题栏与 ⌘W）")
@@ -71,10 +95,10 @@ struct MarkupToolbarLayoutTests {
             hasSelectedAnnotationOptions: false
         )
         #expect(items.contains(.transform))
-        #expect(!items.contains(.close))
+        #expect(!MarkupToolbarLayout.outputItems(in: .editor).contains(.close))
     }
 
-    @Test("选中态有参数时两处都出现那个选项按钮")
+    @Test("选中态有参数时两处都出现那个选项按钮，且紧跟马赛克之后")
     func selectedOptionsAppearsInBothContexts() {
         for context in [MarkupToolbarLayout.Context.overlay, .editor] {
             let items = MarkupToolbarLayout.items(
@@ -83,35 +107,22 @@ struct MarkupToolbarLayoutTests {
                 hasSelectedAnnotationOptions: true
             )
             #expect(items.contains(.selectedOptions))
+            let pixelateIndex = items.firstIndex(of: .tool(.pixelate))
+            let selectedIndex = items.firstIndex(of: .selectedOptions)
+            #expect(pixelateIndex != nil)
+            #expect(selectedIndex == pixelateIndex.map { $0 + 1 })
         }
     }
 
-    @Test("输出组四项固定顺序：撤销 / 重做 / 复制 / 保存 / 贴图")
+    @Test("输出组五项固定顺序：撤销 / 重做 / 复制 / 保存 / 贴图")
     func actionOrderIsStable() {
         for context in [MarkupToolbarLayout.Context.overlay, .editor] {
-            let items = MarkupToolbarLayout.items(
-                in: context,
-                showsCropTool: context == .editor,
-                hasSelectedAnnotationOptions: false
-            )
+            let items = MarkupToolbarLayout.outputItems(in: context)
             let expected = MarkupToolbarLayout.actionCluster.filter {
                 $0 != .close || context == .overlay
             }
-            #expect(items.suffix(expected.count).map { $0 } == expected)
+            #expect(items == expected)
         }
-    }
-
-    @Test("工具组总是排在动作组之前")
-    func toolsComeBeforeActions() {
-        let items = MarkupToolbarLayout.items(
-            in: .editor,
-            showsCropTool: true,
-            hasSelectedAnnotationOptions: true
-        )
-        let lastToolIndex = items.lastIndex(of: .selectedOptions) ?? -1
-        let firstActionIndex = items.firstIndex(of: .undo) ?? -1
-        #expect(lastToolIndex >= 0)
-        #expect(firstActionIndex > lastToolIndex)
     }
 
     // MARK: - 变换

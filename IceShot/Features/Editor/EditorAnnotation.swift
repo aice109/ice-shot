@@ -106,12 +106,11 @@ nonisolated struct EditorColor: Hashable, Sendable {
 }
 
 enum EditorTool: String, CaseIterable, Identifiable {
-    /// 「无工具」哨兵值，不是指针工具。
+    /// 「无工具」态：**在操作条上占第一格**，默认就处于这个态。
     ///
-    /// 它没有 `annotationKind`，选它等于「当前不画任何东西」，画布照旧可以点选 / 拖动已有标注。
-    /// **它不出现在操作条上**（见 `appearsOnToolbar`）：那个位置留给真正的绘制工具，
-    /// 指针格与箭头工具图标太像，用户分不清哪个是「画箭头」哪个是「选中」。
-    /// 想回到这个状态按 `V`，或者再点一次当前已激活的工具把它熄灯。
+    /// 选它等于「当前不画任何东西」，画布照旧可以点选 / 拖动已有标注。
+    /// 它是用户看得见、点得到的显式退出路径——以前只能靠再点一次已激活的工具
+    /// 或按 `V` 退出，两条路都没有可见入口。
     case select
     /// 裁剪不是标注工具：它在画布上操作图像本身的矩形范围（见 `EditorModel.cropRect`）。
     case crop
@@ -130,43 +129,44 @@ enum EditorTool: String, CaseIterable, Identifiable {
     /// 放大镜：框住一块区域，框内显示这块区域自身的放大内容。
     case magnifier
 
-    /// 工具分组：工具栏 / 操作条按组排布，组间靠留白分开。
+    /// 多子型组：一个按钮承载多个工具，按钮图标显示「上次用的那个子型」。
     ///
-    /// `drawing` 是既有的选择 / 裁剪 / 绘制类；`enhancement` 留给 0.3 的增强类
-    /// （聚光灯、放大镜、自动打码）。新增工具时**必须**在 `group` 里选一边——
-    /// 那个 `switch` 不带 `default`，漏写会直接编译不过。
-    enum Group: String, CaseIterable, Sendable {
-        case drawing
-        case enhancement
-    }
+    /// 组内成员顺序即浮窗里子型行的顺序，也决定键位与测试的期望。
+    enum ToolGroup: String, CaseIterable, Sendable {
+        /// 形状：矩形 / 椭圆 / 直线，三者在二级选项浮窗里切换。
+        case shape
+        /// 画笔：画笔 / 荧光笔，两者在二级选项浮窗里切换。
+        case brush
+        /// 更多：序号 / 聚光灯 / 放大镜，点开后就地横向展开三个格子。
+        case more
 
-    var group: Group {
-        switch self {
-        case .select, .crop, .rectangle, .ellipse, .line, .arrow,
-             .freehand, .highlighter, .text, .number, .pixelate:
-            return .drawing
-        case .spotlight, .magnifier:
-            return .enhancement
+        /// 组内成员（顺序即浮窗与展开后的展示顺序）。
+        var members: [EditorTool] {
+            switch self {
+            case .shape: return [.rectangle, .ellipse, .line]
+            case .brush: return [.freehand, .highlighter]
+            case .more: return [.number, .spotlight, .magnifier]
+            }
+        }
+
+        /// 浮窗里子型行的标题：告诉用户正在切的是哪一组，不写成笼统的「方式」。
+        var subOptionTitle: String {
+            switch self {
+            case .shape: return "形状"
+            case .brush: return "画笔"
+            case .more: return "更多"
+            }
         }
     }
 
-    /// 这个工具要不要在操作条 / 工具栏上占一格。
-    ///
-    /// `select` 是「无工具」哨兵，只在交互语义上存在，不给按钮——它是第一格时的
-    /// `cursorarrow` 和箭头工具 `arrow.up.right` 太像，真机上分不清。
-    var appearsOnToolbar: Bool {
-        switch self {
-        case .select: return false
-        case .crop, .rectangle, .ellipse, .line, .arrow,
-             .freehand, .highlighter, .text, .number, .pixelate,
-             .spotlight, .magnifier:
-            return true
-        }
+    /// 这个工具属于哪个多子型组；`nil` 表示自己独占一格。
+    var toolGroup: ToolGroup? {
+        ToolGroup.allCases.first { $0.members.contains(self) }
     }
 
-    /// 某一组的工具，顺序与 `allCases` 一致（工具栏分段、快捷键、验收都用这个顺序）。
-    static func tools(in group: Group) -> [EditorTool] {
-        allCases.filter { $0.group == group }
+    /// 某一组的工具，顺序与 `allCases` 一致（快捷键、验收都用这个顺序）。
+    static func tools(in group: ToolGroup) -> [EditorTool] {
+        group.members
     }
 
     var id: String { rawValue }
@@ -191,10 +191,11 @@ enum EditorTool: String, CaseIterable, Identifiable {
 
     var symbolName: String {
         switch self {
-        case .select: return "cursorarrow"
+        case .select: return "cursorarrow.rays"
         case .crop: return "crop"
         case .rectangle: return "rectangle"
-        case .ellipse: return "circle"
+        // 形状工具画的是可任意压扁的椭圆，`oval` 比正圆的 `circle` 更准确。
+        case .ellipse: return "oval"
         case .line: return "line.diagonal"
         case .arrow: return "arrow.up.right"
         case .freehand: return "pencil.tip"

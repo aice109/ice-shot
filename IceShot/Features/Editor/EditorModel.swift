@@ -38,7 +38,9 @@ final class EditorModel {
     /// 当前打开的二级选项浮窗（`nil` = 没打开）。放在模型里，是为了让 `Esc` 先关浮窗。
     private(set) var optionsTarget: OptionsTarget?
 
-    var tool: EditorTool = .select
+    /// 注意：形状与画笔这两个组按钮**不受**这条规则约束——它们再点一次是把二级选项浮窗重新弹出来，
+    /// 不熄灯（见 `MarkupToolbar`）。想回无工具态一律按 `V`。
+    private(set) var tool: EditorTool = .select
     /// 新标注用的颜色：默认取色板第一格（色板见 `ColorPalettePreferences`）。
     var color: EditorColor = ColorPalettePreferences.defaultColor
     /// 各工具共用的粗细；每个工具按自己的规则换算（见 `EditorToolOptions.WidthRole`）。
@@ -167,6 +169,10 @@ final class EditorModel {
         }
         isTextPicking = enabled
         statusMessage = enabled ? "拖动选择图中文字，⌘C 复制；Esc 退出" : nil
+        // 取字模式下工具胶囊整条换成提示条，展开态留着没有意义。
+        if enabled {
+            setMoreExpanded(false)
+        }
     }
 
     func setTool(_ newTool: EditorTool) {
@@ -183,7 +189,47 @@ final class EditorModel {
         }
         tool = newTool
         statusMessage = nil
+        rememberLastTool(newTool)
         onToolChange?(newTool)
+    }
+
+    /// 形状 / 画笔按钮图标要交代「点下去会画什么」，所以得记住熄灯前用的是组内哪一个。
+    /// 只存内存：这是单次编辑的手感，跨截图记住反而会让用户奇怪「为什么这次默认是椭圆」。
+    private(set) var lastShapeTool: EditorTool = .rectangle
+    private(set) var lastBrushTool: EditorTool = .freehand
+
+    /// 多子型组的「上次子型」；参数不合法时回该组的第一个成员。
+    func lastTool(in group: EditorTool.ToolGroup) -> EditorTool {
+        switch group {
+        case .shape: return lastShapeTool
+        case .brush: return lastBrushTool
+        case .more: return group.members.first ?? .number
+        }
+    }
+
+    /// 「更多」就地横向展开的开关。与「当前画什么」无关，仅是一次布局偏好：
+    /// `V` 熄灯不收起它，进裁剪 / 取字模式才自动收起（那些模式下工具胶囊整条换掉）。
+    private(set) var isMoreExpanded = false
+
+    func setMoreExpanded(_ expanded: Bool) {
+        isMoreExpanded = expanded
+        if !expanded, let group = optionsTargetGroup, group == .more {
+            // 浮窗挂在已收起的格子上会成为孤儿，一并关掉。
+            optionsTarget = nil
+        }
+    }
+
+    private var optionsTargetGroup: EditorTool.ToolGroup? {
+        guard case .tool(let tool) = optionsTarget else { return nil }
+        return tool.toolGroup
+    }
+
+    private func rememberLastTool(_ tool: EditorTool) {
+        switch tool.toolGroup {
+        case .shape: lastShapeTool = tool
+        case .brush: lastBrushTool = tool
+        case .more, .none: break
+        }
     }
 
     func setColor(_ newColor: EditorColor) {
@@ -282,6 +328,32 @@ final class EditorModel {
         var updated = annotations[index]
         updated.style.redactionStyle = style
         annotations[index] = updated
+    }
+
+    /// 粗细滑块：拖动中实时生效，松手（`commitWidthChange`）才进撤销栈。
+    ///
+    /// 选中一条形状 / 画笔族标注时，改的是**那条标注**的线宽；否则只改「以后新标注用什么」。
+    /// 只给粗细不给颜色——颜色与粗细是一对「新标注默认值」的语义，
+    /// 混进选中态会和「改这一条的实际样式」打架（见 `EditorToolOptions.selectedStroke`）。
+    func setWidth(_ width: CGFloat) {
+        setLineWidth(width)
+
+        guard let selectedID,
+              let index = annotations.firstIndex(where: { $0.id == selectedID }),
+              EditorToolOptions.isStrokeAdjustable(annotations[index].kind) else {
+            return
+        }
+        if liveStyleSnapshot == nil {
+            liveStyleSnapshot = annotations
+        }
+        var updated = annotations[index]
+        updated.style.lineWidth = width
+        annotations[index] = updated
+    }
+
+    /// 粗细滑块松手：整段拖动只记一个撤销步骤。
+    func commitWidthChange() {
+        commitStyleChange(actionName: "调整标注粗细")
     }
 
     /// 滑块松手：整段拖动只记一个撤销步骤。

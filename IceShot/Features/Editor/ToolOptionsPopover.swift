@@ -9,6 +9,9 @@ import SwiftUI
 struct ToolOptionsPopover: View {
     let model: EditorModel
     let options: EditorToolOptions
+    /// 多子型组（形状 / 画笔）的子型行：非空时在顶部先给一排子型图标。
+    /// 选中已有标注时为空——选中态只调参数，换子型语义上是「删旧建新」，不做。
+    var subOptions: [EditorTool] = []
 
     /// 色块直径与间距：一行放得下 8 色，彼此不贴着。
     private static let swatchSide: CGFloat = 20
@@ -25,6 +28,8 @@ struct ToolOptionsPopover: View {
     private static let contentPadding: CGFloat = 16
     /// 不同参数组之间的垂直留白。
     private static let sectionSpacing: CGFloat = 14
+    /// 子型按钮的高度：够大才点得中（之前只有文字那一小条）。
+    private static let subOptionHeight: CGFloat = 28
 
     /// 粗细滑块（`Slider` 要 `Double` 区间，模型里存的是 `CGFloat`）。
     private static let widthRange = Double(EditorModel.lineWidthRange.lowerBound)...Double(EditorModel.lineWidthRange.upperBound)
@@ -32,7 +37,7 @@ struct ToolOptionsPopover: View {
     private var widthBinding: Binding<Double> {
         Binding(
             get: { Double(model.lineWidth) },
-            set: { model.setLineWidth(CGFloat($0)) }
+            set: { model.setWidth(CGFloat($0)) }
         )
     }
 
@@ -105,6 +110,11 @@ struct ToolOptionsPopover: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Self.sectionSpacing) {
+            if !subOptions.isEmpty {
+                subOptionSection
+                Divider()
+            }
+
             if options.showsColor {
                 colorSection
             }
@@ -116,7 +126,12 @@ struct ToolOptionsPopover: View {
                     binding: widthBinding,
                     range: Self.widthRange,
                     accessibilityLabel: role.title
-                )
+                ) { isEditing in
+                    // 拖动过程中实时预览，松手才进撤销栈（一次拖动＝一步）。
+                    if !isEditing {
+                        model.commitWidthChange()
+                    }
+                }
             }
 
             if options.showsTextBackground {
@@ -214,6 +229,45 @@ struct ToolOptionsPopover: View {
     }
 
     // MARK: - 参数组
+
+    /// 子型行：一个组按钮里换个画什么。点了就切工具，浮窗留着（还要继续调颜色 / 粗细）。
+    ///
+    /// 标题按组取（「形状」/「画笔」），不写死成「方式」——否则用户不知道自己正在切什么。
+    private var subOptionSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            sectionTitle(subOptions.first?.toolGroup?.subOptionTitle ?? "方式")
+
+            // 等宽等高铺满一行：之前图标 + 文字各自撑宽度，点击区只有文字那么小。
+            HStack(spacing: 6) {
+                ForEach(subOptions) { tool in
+                    subOptionButton(tool)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func subOptionButton(_ tool: EditorTool) -> some View {
+        let isCurrent = tool == model.tool
+        return Button {
+            model.setTool(tool)
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: tool.symbolName)
+                    .fontWeight(.medium)
+                Text(tool.title)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: Self.subOptionHeight)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .glassControlStyle(prominent: isCurrent)
+        .help(tool.shortcut.map { "\(tool.title)（\(String($0).uppercased())）" } ?? tool.title)
+        .accessibilityLabel(tool.title)
+        .accessibilityAddTraits(isCurrent ? [.isSelected] : [])
+    }
 
     private var colorSection: some View {
         let swatches = ColorPalettePreferences.displayPalette(current: model.color)

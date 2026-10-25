@@ -91,6 +91,16 @@ struct EditorToolOptions: Equatable {
         showsSpotlight: true
     )
 
+    /// 形状 / 画笔族标注被选中时的选项：**只给粗细，不给颜色**。
+    ///
+    /// 颜色与粗细在工具格那边是一对「以后新标注用什么」的默认值；
+    /// 而选中一条已有标注时最想改的是它的实际样式。只给粗细既补齐了真实缺口，
+    /// 又与 `selectedText`（只给背景）的风格对齐，不会多出一个与工具格完全重复的入口。
+    static let selectedStroke = EditorToolOptions(
+        showsColor: false,
+        widthRole: .line
+    )
+
     /// 放大镜标注被选中时的选项（同上）。
     static let magnifier = EditorToolOptions(
         showsColor: false,
@@ -107,8 +117,21 @@ struct EditorToolOptions: Equatable {
         case .pixelate, .blur: return .selectedRedaction
         case .spotlight: return .spotlight
         case .magnifier: return .magnifier
-        case .rectangle, .ellipse, .line, .arrow, .freehand, .highlighter, .number:
+        case .rectangle, .ellipse, .line, .arrow, .freehand, .highlighter:
+            return .selectedStroke
+        case .number:
             return nil
+        }
+    }
+
+    /// 线宽可在这条标注上直接调的标注类型。
+    ///
+    /// 形状与画笔族收进组合按钮后，「选中后调粗细」成为自然的事，
+    /// 顺便补齐了以前「选中矩形只能拖、不能调粗细」的缺口。
+    static func isStrokeAdjustable(_ kind: AnnotationKind) -> Bool {
+        switch kind {
+        case .rectangle, .ellipse, .line, .arrow, .freehand, .highlighter: return true
+        case .text, .number, .pixelate, .blur, .spotlight, .magnifier: return false
         }
     }
 

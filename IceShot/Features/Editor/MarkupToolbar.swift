@@ -57,10 +57,6 @@ struct MarkupToolbar: View {
             .glassSurface(.interactive, contrast: .elevated, in: Capsule())
     }
 
-    private var visibleTools: [EditorTool] {
-        Layout.tools(showsCropTool: showsCropTool)
-    }
-
     // MARK: - 模式条
 
     /// 裁剪模式只留「取消 / 裁剪」：工具与复制 / 保存在裁剪框生效前都会造成误解。
@@ -114,37 +110,178 @@ struct MarkupToolbar: View {
 
     // MARK: - 工具胶囊
 
+    /// 按 `MarkupToolbarLayout.toolCluster` 的顺序渲染工具胶囊。
+    ///
+    /// 三种格子：独占工具（箭头 / 文字 / 马赛克 / 裁剪）、多子型组（形状 / 画笔）、
+    /// 「更多」（展开后在其中就地插入 序号 / 聚光灯 / 放大镜）。
     private var toolCluster: some View {
         HStack(spacing: Layout.itemSpacing) {
-            toolGroup(.drawing)
-
-            if Layout.shows(.enhancement, showsCropTool: showsCropTool) {
-                toolGroup(.enhancement)
-                    .padding(.leading, Layout.groupExtraGap)
+            ForEach(Array(Layout.items(
+                in: context,
+                showsCropTool: showsCropTool,
+                hasSelectedAnnotationOptions: selectedOptions != nil
+            ).enumerated()), id: \.offset) { _, item in
+                view(for: item)
             }
+        }
+    }
 
-            if context == .editor {
-                transformButton
-            }
-
+    @ViewBuilder
+    private func view(for item: Layout.Item) -> some View {
+        switch item {
+        case .tool(let tool):
+            toolButton(tool)
+        case .group(let group):
+            groupCluster(group)
+        case .transform:
+            transformButton
+        case .textPicking:
             textPickingButton
+        case .selectedOptions:
             selectedOptionsButton
         }
     }
 
-    /// 一组工具按钮（含各自的二级选项浮窗）；组内用 `itemSpacing`。
-    private func toolGroup(_ group: EditorTool.Group) -> some View {
+    /// 多子型组按钮 + （形状 / 画笔的）子型切换浮窗；「更多」额外就地展开成员格。
+    ///
+    /// 「更多」展开时成员插在**按钮左边**：它在工具序列的最后，往右插会顶出胶囊边界。
+    /// 成员与其余工具之间加一条竖线——这是「容器」与「工具」在形态上的第二重信号
+    /// （第一重是胶囊按钮本身）。
+    @ViewBuilder
+    private func groupCluster(_ group: EditorTool.ToolGroup) -> some View {
         HStack(spacing: Layout.itemSpacing) {
-            ForEach(visibleTools.filter { $0.group == group }) { tool in
-                toolButton(tool)
-                    .popover(isPresented: optionsBinding(for: tool), arrowEdge: .bottom) {
-                        ToolOptionsPopover(
-                            model: model,
-                            options: EditorToolOptions(tool: tool)
-                        )
-                    }
+            if group == .more, model.isMoreExpanded {
+                ForEach(group.members) { tool in
+                    toolButton(tool)
+                }
+                .transition(.asymmetric(
+                    insertion: .move(edge: .trailing).combined(with: .opacity),
+                    removal: .opacity
+                ))
+
+                ContainerDivider()
             }
+
+            groupButton(group)
         }
+        // 其余两组共用一份子型 + 参数浮窗，挂在组按钮上。
+        .popover(isPresented: groupOptionsBinding(group), arrowEdge: .bottom) {
+            ToolOptionsPopover(
+                model: model,
+                options: options(for: group),
+                subOptions: group == .more ? [] : group.members
+            )
+        }
+    }
+
+    /// 组按钮当前代表的工具：已在该组内就用当前的，熄灯后回到「上次用的那个」。
+    private func representedTool(_ group: EditorTool.ToolGroup) -> EditorTool {
+        if let current = model.tool.toolGroup, current == group {
+            return model.tool
+        }
+        return model.lastTool(in: group)
+    }
+
+    @ViewBuilder
+    private func groupButton(_ group: EditorTool.ToolGroup) -> some View {
+        // 「更多」是**容器**不是工具：形态（胶囊 + 箭头）、交互（纯开关）、高亮语义
+        // （只在展开时亮）三处都与旁边的工具格不同。混成一样会让人以为点它会画东西。
+        if group == .more {
+            moreButton()
+        } else {
+            toolGroupButton(group)
+        }
+    }
+
+    /// 「更多」：胶囊形 + 旋转箭头，点一下就地展开 / 收起成员格。
+    private func moreButton() -> some View {
+        Button {
+            withAnimation(Self.moreExpandAnimation) {
+                model.setMoreExpanded(!model.isMoreExpanded)
+            }
+        } label: {
+            Image(systemName: Layout.moreSymbolName)
+                .font(.caption.weight(.semibold))
+                // 展开后成员插在按钮**左边**，所以箭头指向左 = 「点它收回去」。
+                // `chevron.right` 转 180° 正好朝左；转 90° 会变成下箭头，方向感是错的。
+                .rotationEffect(.degrees(model.isMoreExpanded ? 180 : 0))
+                .frame(width: Layout.iconSide, height: Layout.iconSide)
+                .padding(.horizontal, Layout.moreButtonHorizontalPadding)
+                .frame(height: Layout.moreButtonHeight)
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .glassControlStyle(prominent: model.isMoreExpanded)
+        .help(model.isMoreExpanded ? "收起更多工具" : "更多工具")
+        .accessibilityLabel(model.isMoreExpanded ? "收起更多工具" : "更多工具")
+        .accessibilityAddTraits(model.isMoreExpanded ? [.isSelected] : [])
+    }
+
+    /// 形状 / 画笔：一格承载组内多个工具，图标跟「当前或上次用的子型」走。
+    private func toolGroupButton(_ group: EditorTool.ToolGroup) -> some View {
+        let represented = representedTool(group)
+        let isCurrent = represented == model.tool
+        return Button {
+            // 再点一次当前组内工具 = 熄灯回「无工具」；想换子型请在浮窗里点另一项。
+            if isCurrent {
+                model.setTool(.select)
+                model.setOptionsTarget(nil)
+                return
+            }
+            model.setTool(represented)
+            let options = options(for: group)
+            model.setOptionsTarget(options.isPresented ? .tool(represented) : nil)
+        } label: {
+            Image(systemName: represented.symbolName)
+                .fontWeight(.medium)
+                .frame(width: Layout.iconSide, height: Layout.iconSide)
+        }
+        // 高亮＝「当前工具在这个组里」，与旁边的单工具格同一条语义。
+        .glassControlStyle(prominent: isCurrent)
+        .help(groupHelp(group, represented: represented))
+        .accessibilityLabel(groupHelp(group, represented: represented))
+        .accessibilityAddTraits(isCurrent ? [.isSelected] : [])
+    }
+
+    /// 「更多」展开 / 收起的动效：它是空间变化，瞬变会像渲染 bug。
+    private static let moreExpandAnimation: Animation = .snappy(duration: 0.18)
+
+    /// 组按钮的二级选项：形状 / 画笔按「当前代表的那件工具」取参数，更多三项各弹自己的。
+    private func options(for group: EditorTool.ToolGroup) -> EditorToolOptions {
+        EditorToolOptions(tool: representedTool(group))
+    }
+
+    private func groupOptionsBinding(_ group: EditorTool.ToolGroup) -> Binding<Bool> {
+        Binding(
+            get: {
+                guard group != .more else { return false }
+                return model.optionsTarget == .tool(representedTool(group))
+            },
+            set: { isPresented in
+                guard group != .more else { return }
+                let target = EditorModel.OptionsTarget.tool(representedTool(group))
+                if isPresented {
+                    model.setOptionsTarget(target)
+                } else if model.optionsTarget == target {
+                    model.setOptionsTarget(nil)
+                }
+            }
+        )
+    }
+
+    /// 组按钮提示：带快捷键，并交代「点下去会画什么」和「子型在哪换」。
+    private func groupHelp(_ group: EditorTool.ToolGroup, represented: EditorTool) -> String {
+        let base: String
+        switch group {
+        case .shape: base = "形状：当前「\(represented.title)」"
+        case .brush: base = "画笔：当前「\(represented.title)」"
+        case .more: return model.isMoreExpanded ? "收起更多工具" : "更多工具"
+        }
+        let shortcut = represented.shortcut.map { "（\(String($0).uppercased())）" } ?? ""
+        guard represented == model.tool else {
+            return "\(base)\(shortcut)，点开可换子型、调参数"
+        }
+        return "\(base)\(shortcut)，再点一次退出"
     }
 
     /// 变换（旋转 / 翻转）：一次性图像变换命令，点开与工具二级选项同款的原生浮窗。
@@ -206,7 +343,6 @@ struct MarkupToolbar: View {
         .glassControlStyle()
         .help("取字：直接选取图中文字复制（⇧⌘T）")
         .accessibilityLabel("取字")
-        .padding(.leading, 4)
     }
 
     /// 选中已有标注时的「该类型选项」按钮。
@@ -355,6 +491,7 @@ struct MarkupToolbar: View {
 
     private func toolButton(_ tool: EditorTool) -> some View {
         let isCurrent = tool == model.tool
+        let options = EditorToolOptions(tool: tool)
         return Button {
             // 再点一次已激活的工具 = 煜灯回到「无工具」态。
             // 指针格已经不在操作条上，这是鼠标用户唯一能退出当前工具的路径（键盘走 `V`）。
@@ -366,7 +503,6 @@ struct MarkupToolbar: View {
             }
             // 点击工具 = 选中它 + 弹出它自己的二级选项；无选项的工具（如裁剪）就不弹。
             model.setTool(tool)
-            let options = EditorToolOptions(tool: tool)
             model.setOptionsTarget(options.isPresented ? .tool(tool) : nil)
         } label: {
             Image(systemName: tool.symbolName)
@@ -378,6 +514,9 @@ struct MarkupToolbar: View {
         .help(toolHelp(tool))
         .accessibilityLabel(tool.title)
         .accessibilityAddTraits(isCurrent ? [.isSelected] : [])
+        .popover(isPresented: optionsBinding(for: tool), arrowEdge: .bottom) {
+            ToolOptionsPopover(model: model, options: options)
+        }
     }
 
     /// 工具提示：带快捷键，并告诉用户再点一次会退出该工具。
@@ -403,5 +542,19 @@ struct MarkupToolbar: View {
         .disabled(disabled)
         .help(help)
         .accessibilityLabel(label)
+    }
+}
+
+/// 「更多」展开时与其余工具之间的竖分隔线。
+///
+/// 只靠留白区分不够——「更多」的成员是真正的绘制工具，和外面的工具语义相同，
+/// 用户需要知道「这几格是从那个胶囊里出来的」。
+private struct ContainerDivider: View {
+    var body: some View {
+        Rectangle()
+            .fill(.separator)
+            .frame(width: 1, height: MarkupToolbarLayout.iconSide - 2)
+            .padding(.horizontal, 2)
+            .accessibilityHidden(true)
     }
 }

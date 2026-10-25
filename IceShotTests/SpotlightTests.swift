@@ -9,10 +9,10 @@ import Testing
 struct SpotlightTests {
     // MARK: - 工具与样式
 
-    @Test func spotlightToolBelongsToEnhancementGroup() {
-        #expect(EditorTool.spotlight.group == .enhancement)
-        #expect(EditorTool.tools(in: .enhancement).contains(.spotlight))
-        #expect(EditorTool.tools(in: .drawing).contains(.spotlight) == false)
+    @Test func spotlightToolBelongsToMoreGroup() {
+        // 聚光灯收口进「更多」，不再独占一格。
+        #expect(EditorTool.spotlight.toolGroup == .more)
+        #expect(EditorTool.ToolGroup.more.members.contains(.spotlight))
         #expect(EditorTool.spotlight.shortcut == "s")
         #expect(EditorTool.spotlight.annotationKind == .spotlight)
     }

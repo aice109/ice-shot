@@ -9,10 +9,10 @@ import Testing
 struct MagnifierAnnotationTests {
     // MARK: - 工具与选项
 
-    @Test func magnifierToolBelongsToEnhancementGroup() {
-        #expect(EditorTool.magnifier.group == .enhancement)
-        #expect(EditorTool.tools(in: .enhancement).contains(.magnifier))
-        #expect(EditorTool.tools(in: .drawing).contains(.magnifier) == false)
+    @Test func magnifierToolBelongsToMoreGroup() {
+        // 放大镜收口进「更多」，不再独占一格。
+        #expect(EditorTool.magnifier.toolGroup == .more)
+        #expect(EditorTool.ToolGroup.more.members.contains(.magnifier))
         #expect(EditorTool.magnifier.shortcut == "z")
         #expect(EditorTool.magnifier.annotationKind == .magnifier)
     }
