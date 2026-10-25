@@ -158,6 +158,8 @@ private struct CountdownHUDView: View {
             Text("秒后截图")
                 .font(.callout)
                 .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
 
             Button("取消") {
                 state.onCancel()
@@ -166,7 +168,11 @@ private struct CountdownHUDView: View {
             .help("取消延时截图（Esc）")
         }
         .padding(18)
-        .frame(width: 220, height: 150)
+        // 高度固定（居中数字的位置要稳），宽度给区间：
+        // 中文「秒后截图」一行放得下 220pt，英文 "seconds until capture" 会超出，
+        // 允许它撑到 300pt，而不是把字缩成看不清或直接截断。
+        .frame(minWidth: 220, idealWidth: 220, maxWidth: 300, minHeight: 150)
+        .fixedSize(horizontal: true, vertical: false)
         .glassSurface(
             .clear,
             contrast: .none,

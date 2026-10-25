@@ -54,7 +54,7 @@
 "图片中的文字，可选取复制" = "Text in the image can be selected and copied";
 "在 Finder 中显示" = "Show in Finder";
 "在 GitHub 上查看源码" = "View source on GitHub";
-"在图上拖动选择裁剪范围；拖手柄调整；Return 裁剪，Esc 取消" = "Drag on the image to choose the crop area; drag handles to adjust; Return to crop, Esc to cancel";
+"在图上拖动选择裁剪范围；拖手柄调整；Return 裁剪，Esc 取消" = "Drag to set the crop area; drag handles to adjust; Return applies, Esc cancels";
 "在标注编辑器中打开" = "Open in Editor";
 "在浏览器里打开最新版本的发布页（IceShot 自身不联网）" = "Open the latest release page in your browser (IceShot itself makes no network requests)";
 "复制" = "Copy";
@@ -98,7 +98,7 @@
 "打开系统设置" = "Open System Settings";
 "打开设置（⌘,）" = "Open Settings (⌘,)";
 "打码样式" = "Redaction Style";
-"拖动绘制；点击标注可选中移动 / ⌫ 删除；⇧ 约束比例" = "Drag to draw; click an annotation to select and move it, ⌫ to delete; ⇧ constrains the aspect ratio";
+"拖动绘制；点击标注可选中移动 / ⌫ 删除；⇧ 约束比例" = "Drag to draw; click to select and move, ⌫ to delete; ⇧ keeps ratio";
 "拖动选择图中文字，⌘C 复制" = "Drag to select text in the image, ⌘C to copy";
 "拖拽框选区域，或直接点击高亮的窗口" = "Drag to select a region, or click the highlighted window";
 "按住 Space 可拖动选区 · 松开结束" = "Hold Space to move the selection · release to finish";
@@ -332,3 +332,6 @@ Screenshots are saved to history automatically.";
 "重复上次" = "Repeat Last";
 "关闭；原图已保存到历史（Esc）" = "Close; the original was saved to history (Esc)";
 "贴到屏幕上（⇧⌘P）" = "Pin to screen (⇧⌘P)";
+"个标注" = "annotations";
+"帧" = "frames";
+"先点一下要截的窗口，再在里面向下滚动；完成后点「完成」" = "Click the window to capture, then scroll inside it; click Done when finished";

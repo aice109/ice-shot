@@ -90,16 +90,24 @@ private struct ScrollCaptureHUDView: View {
                     .foregroundStyle(.tint)
                 Text("长截图采集中")
                     .font(.headline)
+                    // 标题与右侧读数挤一行时，先让标题截断：
+                    // 「采集中」这个状态右边读数已经交代了，标题少几个字不影响理解。
+                    .lineLimit(1)
                 Spacer(minLength: 0)
-                Text("已采集 \(state.frameCount) 帧 · \(state.height) px")
+                Text("\(state.frameCount) \(String(localized: "帧")) · \(state.height) px")
                     .font(.caption)
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
+                    // 读数是数字，截断就看不到了：不参与压缩。
+                    .lineLimit(1)
+                    .fixedSize()
             }
 
             Text(state.message ?? "先点一下要截的窗口，再在里面向下滚动；完成后点「完成」")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                // 说明文字允许折行：英文比中文长得多，窄面板里一行放不下。
+                .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             HStack(spacing: 8) {
@@ -115,7 +123,10 @@ private struct ScrollCaptureHUDView: View {
             }
         }
         .padding(12)
-        .frame(width: 340)
+        // 固定宽度会卡死英文（"Scroll Capture in Progress" + 帧数读数放不下一行），
+        // 改成给定宽度区间让内容自己撑：中文窄、英文宽，都不截断。
+        .frame(minWidth: 340, idealWidth: 340, maxWidth: 460)
+        .fixedSize(horizontal: true, vertical: false)
         .glassSurface(.clear, contrast: .none, in: RoundedRectangle(cornerRadius: 12))
         .padding(4)
     }
