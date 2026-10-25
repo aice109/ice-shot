@@ -34,6 +34,16 @@ enum MarkupToolbarLayout {
     /// 「更多」按钮的高度：与图标点击区一致，保证胶囊不胖于方形按钮。
     static let moreButtonHeight: CGFloat = iconSide + 8
 
+    // MARK: - 图标与文字
+
+    /// 操作条**只显示图标，不显示文字**。
+    ///
+    /// 曾经试过「图标 + 文字」：11 个工具 + 6 个输出全带文字约需 950 pt，
+    /// 13 寸屏减去选区边缘后就顶到屏幕边界；而只给高频项加文字，
+    /// 又会让同一条胶囊里的按钮一宽一窄、重心散掉。
+    /// 每个工具都有 `.help` 提示与单键快捷键，图标 + 悬停说明已经够用。
+    static let showsButtonTitles = false
+
     /// 操作条所在的位置。
     enum Context: Equatable, Sendable {
         /// 截图后的就地浮层：压在截图上，带关闭按钮，没有裁剪与变换。

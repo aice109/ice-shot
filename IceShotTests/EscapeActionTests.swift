@@ -73,11 +73,15 @@ struct EscapeActionTests {
         }
         panel.onCancelOperation = { cancelRequests += 1 }
 
+        // 只有「用户发起的关闭」（Esc / 关窗手势 → `performClose:`）会被拦。
         panel.performClose(nil)
-        panel.close()
 
-        #expect(exitedTextPicking == 2)
+        #expect(exitedTextPicking == 1)
         #expect(cancelRequests == 0)
+        // 程序化 `close()` 必须**永远**能关掉：它是控制器拆浮层的唯一出口。
+        // 一旦被拦，`.screenSaver` 层级的全屏面板就再没有任何退出路径（旧实现的全屏死锁）。
+        panel.close()
+        #expect(panel.isVisible == false)
     }
 
     @Test("非取字模式下关窗请求转成 Esc 语义")
@@ -87,9 +91,13 @@ struct EscapeActionTests {
         panel.onTextPickingEscape = { false }
         panel.onCancelOperation = { cancelRequests += 1 }
 
-        panel.close()
+        panel.performClose(nil)
 
         #expect(cancelRequests == 1)
+        // `close()` 不走 Esc 语义，否则重复关闭会重入收尾。
+        panel.close()
+        #expect(cancelRequests == 1)
+        #expect(panel.isVisible == false)
     }
 
     @Test("协调器收尾时允许真正关闭")
@@ -123,5 +131,17 @@ struct EscapeActionTests {
         panel.cancelOperation(nil)
         #expect(handled == 1)
         #expect(panel.isVisible == false)
+    }
+
+    /// 回归：`allowsClose` 一旦为真（`dismiss()` 已开始收尾），`cancelOperation`
+    /// 必须交回 `NSWindow` 默认实现，而不是再跑一遍 Esc 判定 / 再重入收尾。
+    @Test("收尾中不再重复路由 Esc")
+    func panelIgnoresCancelWhileClosing() {
+        let panel = makePanel()
+        var handled = 0
+        panel.onCancelOperation = { handled += 1 }
+        panel.allowsClose = true
+        panel.cancelOperation(nil)
+        #expect(handled == 0)
     }
 }

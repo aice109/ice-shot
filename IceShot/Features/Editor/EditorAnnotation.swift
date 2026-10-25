@@ -200,7 +200,10 @@ enum EditorTool: String, CaseIterable, Identifiable {
         case .arrow: return "arrow.up.right"
         case .freehand: return "pencil.tip"
         case .highlighter: return "highlighter"
-        case .text: return "textformat"
+        // 「输入文字」的图标用 `text.cursor`（T 形光标 + 插入符），不用 `textformat`。
+        // `textformat` 是「Aa」两个字母，在 20 pt 下渲染出来就是「格式」两个字，
+        // 在小工具栏里会被误读成文字标签而不是按钮图标（宽高比 1.61，比方形图标宽近一倍）。
+        case .text: return "text.cursor"
         case .number: return "1.circle"
         case .pixelate: return "checkerboard.rectangle"
         case .spotlight: return "light.beacon.max"

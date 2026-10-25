@@ -249,9 +249,7 @@ struct MarkupToolbar: View {
             let options = options(for: group)
             model.setOptionsTarget(options.isPresented ? .tool(represented) : nil)
         } label: {
-            Image(systemName: represented.symbolName)
-                .fontWeight(.medium)
-                .frame(width: Layout.iconSide, height: Layout.iconSide)
+            iconOnly(symbol: represented.symbolName)
         }
         // 高亮＝「当前工具在这个组里」，与旁边的单工具格同一条语义。
         .glassControlStyle(prominent: isCurrent, clear: true)
@@ -522,9 +520,7 @@ struct MarkupToolbar: View {
             model.setTool(tool)
             model.setOptionsTarget(options.isPresented ? .tool(tool) : nil)
         } label: {
-            Image(systemName: tool.symbolName)
-                .fontWeight(.medium)
-                .frame(width: Layout.iconSide, height: Layout.iconSide)
+            iconOnly(symbol: tool.symbolName)
         }
         // 选中态用强调色玻璃（`.glassProminent`），不靠半透明灰差——最透玻璃下也一眼可辨。
         .glassControlStyle(prominent: isCurrent, clear: true)
@@ -551,14 +547,22 @@ struct MarkupToolbar: View {
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            Image(systemName: symbol)
-                .fontWeight(.medium)
-                .frame(width: Layout.iconSide, height: Layout.iconSide)
+            iconOnly(symbol: symbol)
         }
         .glassControlStyle()
         .disabled(disabled)
         .help(help)
         .accessibilityLabel(label)
+    }
+
+    /// 工具/动作按钮的统一内容：**只有一个图标**。
+    ///
+    /// 固定 `Layout.iconSide` 见方，保证所有胶囊格宽度一致、视觉重心齐平。
+    /// 名称与快捷键交给 `.help` 与 `accessibilityLabel`。
+    private func iconOnly(symbol: String) -> some View {
+        Image(systemName: symbol)
+            .fontWeight(.medium)
+            .frame(width: Layout.iconSide, height: Layout.iconSide)
     }
 }
 
