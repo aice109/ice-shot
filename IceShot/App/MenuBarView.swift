@@ -199,57 +199,57 @@ struct MenuBarView: View {
                 .accessibilityLabel("延时截图")
             }
 
-            Grid(horizontalSpacing: 8, verticalSpacing: 8) {
-                GridRow {
-                    Button {
-                        startCapture {
-                            await coordinator.startWindowCapture(delay: .milliseconds(250))
-                        }
-                    } label: {
-                        actionLabel("窗口截图", symbol: "macwindow", shortcut: shortcutLabel(.window))
+            // 五个动作排成单列竖表，不再用两列 `Grid`。
+            //
+            // 原来是 2×3 网格，但英文放不下：`Full Screen Capture` 加上右侧快捷键
+            // 需要 195pt，而 380pt 面板的两列每格只有 172pt，实测超出 22pt。
+            // 菜单栏面板本来就是窄容器，单列列表也比网格更常见：
+            // 每行右侧对齐快捷键，左侧文案长短自由，两种语言都不截断。
+            VStack(spacing: 8) {
+                Button {
+                    startCapture {
+                        await coordinator.startWindowCapture(delay: .milliseconds(250))
                     }
-                    .help("悬停并点击一个窗口")
-
-                    Button {
-                        startCapture {
-                            await coordinator.startFullScreenCapture(delay: .milliseconds(250))
-                        }
-                    } label: {
-                        actionLabel("全屏截图", symbol: "rectangle.inset.filled", shortcut: shortcutLabel(.fullScreen))
-                    }
-                    .help("截取光标所在的显示器")
+                } label: {
+                    actionLabel("窗口截图", symbol: "macwindow", shortcut: shortcutLabel(.window))
                 }
+                .help("悬停并点击一个窗口")
 
-                GridRow {
-                    Button {
-                        startCapture {
-                            await coordinator.startAllDisplaysCapture(delay: .milliseconds(250))
-                        }
-                    } label: {
-                        actionLabel("全部显示器", symbol: "rectangle.on.rectangle", shortcut: nil)
+                Button {
+                    startCapture {
+                        await coordinator.startFullScreenCapture(delay: .milliseconds(250))
                     }
-                    .help("逐屏截取所有显示器")
-
-                    Button {
-                        startCapture {
-                            await coordinator.startRepeatLastRegion(delay: .milliseconds(250))
-                        }
-                    } label: {
-                        actionLabel("重复上次", symbol: "arrow.counterclockwise", shortcut: shortcutLabel(.repeatRegion))
-                    }
-                    .help("复用上次区域；显示器或分辨率变化时回退到区域选择")
+                } label: {
+                    actionLabel("全屏截图", symbol: "rectangle.inset.filled", shortcut: shortcutLabel(.fullScreen))
                 }
+                .help("截取光标所在的显示器")
 
-                GridRow {
-                    Button {
-                        startCapture {
-                            await coordinator.startScrollCapture(delay: .milliseconds(250))
-                        }
-                    } label: {
-                        actionLabel("长截图", symbol: "scroll", shortcut: shortcutLabel(.scroll))
+                Button {
+                    startCapture {
+                        await coordinator.startAllDisplaysCapture(delay: .milliseconds(250))
                     }
-                    .help("框选后自己滚动内容，自动拼接成一张长图")
+                } label: {
+                    actionLabel("全部显示器", symbol: "rectangle.on.rectangle", shortcut: nil)
                 }
+                .help("逐屏截取所有显示器")
+
+                Button {
+                    startCapture {
+                        await coordinator.startRepeatLastRegion(delay: .milliseconds(250))
+                    }
+                } label: {
+                    actionLabel("重复上次", symbol: "arrow.counterclockwise", shortcut: shortcutLabel(.repeatRegion))
+                }
+                .help("复用上次区域；显示器或分辨率变化时回退到区域选择")
+
+                Button {
+                    startCapture {
+                        await coordinator.startScrollCapture(delay: .milliseconds(250))
+                    }
+                } label: {
+                    actionLabel("长截图", symbol: "scroll", shortcut: shortcutLabel(.scroll))
+                }
+                .help("框选后自己滚动内容，自动拼接成一张长图")
             }
             .buttonStyle(.bordered)
         }

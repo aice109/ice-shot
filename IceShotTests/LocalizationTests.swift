@@ -72,6 +72,10 @@ struct LocalizationTests {
 
         // 只认会被本地化的位置：`Text("…")`、`String(localized: "…")`、`.help("…")` 等。
         // 注释里的中文不算——那是写给维护者看的。
+        // 除了常见控件的字面量位置，还要盖住**自定义函数形参**：
+        // 例如 `footerButton(title: "退出", help: "…")` 里的标题本身就是
+        // `LocalizedStringKey`，它不在 `Text(`/`Label(` 里，普通模式扫不到。
+        // 上一版的「退出」就是因为缺这两条而漏翻。
         let patterns = [
             #"Text\("([^"]*[\p{Han}][^"]*)"\)"#,
             #"String\(localized: "([^"]*[\p{Han}][^"]*)"\)"#,
@@ -79,9 +83,14 @@ struct LocalizationTests {
             #"\.accessibilityLabel\("([^"]*[\p{Han}][^"]*)"\)"#,
             #"Label\("([^"]*[\p{Han}][^"]*)""#,
             #"Button\("([^"]*[\p{Han}][^"]*)"\)"#,
-            #"Section\("([^"]*[\p{Han}][^"]*)""#,
-            #"Picker\("([^"]*[\p{Han}][^"]*)""#,
+            #"Section\("([^"]*[\p{Han}][^"]*)"\)"#,
+            #"Picker\("([^"]*[\p{Han}][^"]*)"\)"#,
             #"CommandMenu\("([^"]*[\p{Han}][^"]*)"\)"#,
+            // 自定义按钮/文字构造函数的形参。
+            #"title: "([^"]*[\p{Han}][^"]*)""#,
+            #"help: "([^"]*[\p{Han}][^"]*)""#,
+            // 菜单项与列表项里的纯字面量（如 `Button("删除") {}`）。
+            #"actionLabel\("([^"]*[\p{Han}][^"]*)""#,
         ]
 
         var missing = Set<String>()

@@ -335,3 +335,4 @@ Screenshots are saved to history automatically.";
 "个标注" = "annotations";
 "帧" = "frames";
 "先点一下要截的窗口，再在里面向下滚动；完成后点「完成」" = "Click the window to capture, then scroll inside it; click Done when finished";
+"退出" = "Quit";
