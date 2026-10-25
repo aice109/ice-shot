@@ -130,10 +130,12 @@ scope 用中文功能名（`编辑器`、`长截图`、`更新`），或脚本�
 
 | 你要做的事 | 先读 |
 | --- | --- |
+| 第一次接触本仓库，或从 Web / Android 背景转过来 | [docs/onboarding-for-app-devs.md](docs/onboarding-for-app-devs.md) |
 | 搞清楚项目能做什么 / 下一步规划 / 哪些明确不做 | [docs/roadmap.md](docs/roadmap.md) |
 | 找某个功能在哪个目录、谁依赖谁、组合根在哪 | [docs/architecture.md](docs/architecture.md) |
 | 写代码前确认工程规则：分层、命名、并发、错误处理 | [docs/engineering.md](docs/engineering.md) |
 | 做任何界面、浮层、材质、颜色、动效、图标 | [docs/ui-guidelines.md](docs/ui-guidelines.md) |
+| 改光标行为、查某个光标长什么样 | [docs/cursors.md](docs/cursors.md) |
 | 改截取 / 标注 / 历史 / 贴图 / OCR 行为 | [docs/architecture.md](docs/architecture.md) 对应章节 |
 | 发版、改版本号、写 CHANGELOG | [docs/engineering.md](docs/engineering.md) 的发布一节 |
 
