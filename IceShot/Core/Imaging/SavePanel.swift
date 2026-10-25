@@ -11,8 +11,8 @@ enum SavePanel {
     /// 返回 false 表示用户取消；抛错表示编码或写入失败。
     static func savePNG(_ image: CGImage) throws -> Bool {
         let panel = NSSavePanel()
-        panel.title = "保存截图"
-        panel.prompt = "保存"
+        panel.title = String(localized: "保存截图")
+        panel.prompt = String(localized: "保存")
         panel.allowedContentTypes = [.png]
         panel.canCreateDirectories = true
         panel.isExtensionHidden = false
@@ -40,9 +40,9 @@ enum SavePanel {
         }
 
         let panel = NSOpenPanel()
-        panel.title = "保存全部截图"
+        panel.title = String(localized: "保存全部截图")
         panel.message = "将保存 \(images.count) 张 PNG 到所选文件夹"
-        panel.prompt = "保存"
+        panel.prompt = String(localized: "保存")
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.canCreateDirectories = true

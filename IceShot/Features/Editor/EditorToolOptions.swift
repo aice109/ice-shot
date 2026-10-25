@@ -23,11 +23,11 @@ struct EditorToolOptions: Equatable {
         /// 滑块标题：让用户知道这一格调的是「这件工具上的什么」。
         var title: String {
             switch self {
-            case .line: return "粗细"
-            case .highlighter: return "高亮粗细"
-            case .fontSize: return "字号"
-            case .badge: return "徽章大小"
-            case .brush: return "笔刷粗细"
+            case .line: return String(localized: "粗细")
+            case .highlighter: return String(localized: "高亮粗细")
+            case .fontSize: return String(localized: "字号")
+            case .badge: return String(localized: "徽章大小")
+            case .brush: return String(localized: "笔刷粗细")
             }
         }
 

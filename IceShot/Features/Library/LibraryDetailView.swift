@@ -59,7 +59,7 @@ struct LibraryDetailView: View {
 
                 Button(action: toggleFavorite) {
                     Label(
-                        record.isFavorite ? "取消收藏" : "收藏",
+                        record.isFavorite ? String(localized: "取消收藏") : String(localized: "收藏"),
                         systemImage: record.isFavorite ? "heart.fill" : "heart"
                     )
                 }
@@ -80,7 +80,7 @@ struct LibraryDetailView: View {
             isLoading = false
         }
         .confirmationDialog(
-            "删除这张截图？",
+            String(localized: "删除这张截图？"),
             isPresented: $isConfirmingDelete,
             titleVisibility: .visible
         ) {
@@ -92,7 +92,7 @@ struct LibraryDetailView: View {
             Text("原图与缩略图会从历史库删除，无法恢复。")
         }
         .alert(
-            "操作失败",
+            String(localized: "操作失败"),
             isPresented: Binding(
                 get: { errorMessage != nil },
                 set: { if !$0 { errorMessage = nil } }
@@ -131,10 +131,10 @@ struct LibraryDetailView: View {
                     .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
                 }
             } else if isLoading {
-                ProgressView("加载原图…")
+                ProgressView(String(localized: "加载原图…"))
             } else {
                 ContentUnavailableView(
-                    "原图不可用",
+                    String(localized: "原图不可用"),
                     systemImage: "exclamationmark.triangle",
                     description: Text("截图文件可能已被移动或删除。记录仍可删除。")
                 )
@@ -234,7 +234,7 @@ struct LibraryDetailView: View {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
-        actionMessage = "已复制识别文字"
+        actionMessage = String(localized: "已复制识别文字")
     }
 
     private func recognizeText() {
@@ -243,7 +243,7 @@ struct LibraryDetailView: View {
         Task {
             let recognized = await library.recognizeText(for: record)
             isRecognizing = false
-            actionMessage = recognized ? "识别完成" : "未识别到文字"
+            actionMessage = recognized ? String(localized: "识别完成") : String(localized: "未识别到文字")
         }
     }
 
@@ -251,7 +251,7 @@ struct LibraryDetailView: View {
         guard let preview, let editor else { return }
         editor.open(
             image: preview,
-            title: "编辑截图",
+            title: String(localized: "编辑截图"),
             target: .history(recordID: record.id, isFavorite: record.isFavorite)
         )
     }
@@ -260,7 +260,7 @@ struct LibraryDetailView: View {
         Task {
             do {
                 try await actions.copyImage(record)
-                actionMessage = "已复制到剪贴板"
+                actionMessage = String(localized: "已复制到剪贴板")
             } catch {
                 errorMessage = message(for: error)
             }
@@ -271,7 +271,7 @@ struct LibraryDetailView: View {
         Task {
             do {
                 if try await actions.saveAsPNG(record) {
-                    actionMessage = "已保存"
+                    actionMessage = String(localized: "已保存")
                 }
             } catch {
                 errorMessage = message(for: error)
@@ -282,7 +282,7 @@ struct LibraryDetailView: View {
     private func toggleFavorite() {
         do {
             try library.toggleFavorite(record)
-            actionMessage = record.isFavorite ? "已收藏" : "已取消收藏"
+            actionMessage = record.isFavorite ? String(localized: "已收藏") : String(localized: "已取消收藏")
         } catch {
             errorMessage = message(for: error)
         }

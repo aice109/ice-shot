@@ -12,6 +12,8 @@ struct SettingsView: View {
 
     @AppStorage(HistoryPreferences.enabledKey) private var historyEnabled = true
     @AppStorage(OCRPreferences.autoRecognizeKey) private var autoRecognize = true
+    @AppStorage(CapturePreferences.countdownSecondsKey)
+    private var countdownSeconds = CapturePreferences.defaultCountdownSeconds
     @Environment(\.openWindow) private var openWindow
     @State private var recorder = HotkeyRecorder()
     @State private var launchAtLogin = LaunchAtLoginModel()
@@ -21,7 +23,7 @@ struct SettingsView: View {
             generalSection
 
             Section("屏幕录制权限") {
-                LabeledContent("状态", value: coordinator.permissionSummary)
+                LabeledContent(String(localized: "状态"), value: coordinator.permissionSummary)
                 HStack {
                     if coordinator.permissionStatus != .authorized {
                         Button("授予屏幕录制权限…") {
@@ -51,7 +53,14 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
                 Text("全屏截图使用光标所在显示器；全部显示器会逐屏截取，可保存多张 PNG。")
                     .foregroundStyle(.secondary)
-                Text("延时截图支持区域 / 窗口 / 全屏 / 全部显示器，倒计时期间可取消。")
+
+                Picker("延时截图", selection: $countdownSeconds) {
+                    ForEach(CapturePreferences.countdownOptions, id: \.self) { seconds in
+                        Text("\(seconds) 秒").tag(seconds)
+                    }
+                }
+                Text("菜单「截图 > 延时截图」倒计时结束后开始区域截图；倒计时期间可取消。")
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
@@ -78,7 +87,7 @@ struct SettingsView: View {
 
             Section("关于") {
                 // 版本号只读 Bundle，不能在界面里写死；打包脚本可覆盖 MARKETING_VERSION。
-                LabeledContent("版本", value: AppVersion.displayText)
+                LabeledContent(String(localized: "版本"), value: AppVersion.displayText)
                 if AppVersion.channel.isBeta {
                     Text("当前是 Beta 预览版：功能与界面仍可能调整；问题请反馈。")
                         .font(.caption)
@@ -128,7 +137,7 @@ struct SettingsView: View {
     private var generalSection: some View {
         Section("通用") {
             Toggle(
-                "开机时自动启动",
+                String(localized: "开机时自动启动"),
                 isOn: Binding(
                     get: { launchAtLogin.isEnabled },
                     set: { launchAtLogin.setEnabled($0) }
@@ -253,7 +262,7 @@ struct SettingsView: View {
 
     private func shortcutText(for hotkey: GlobalHotkeyManager.Hotkey) -> String {
         guard recorder.isRecording(hotkey) else {
-            return hotkeys?.label(for: hotkey) ?? "未设置"
+            return hotkeys?.label(for: hotkey) ?? String(localized: "未设置")
         }
         let modifiers = recorder.pressedModifiers.symbol
         return modifiers.isEmpty ? "按下组合键…" : "\(modifiers)…"

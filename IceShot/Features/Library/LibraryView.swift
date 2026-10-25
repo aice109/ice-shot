@@ -82,7 +82,7 @@ struct LibraryView: View {
                 .id(record.id)
             } else {
                 ContentUnavailableView(
-                    "选择一张截图",
+                    String(localized: "选择一张截图"),
                     systemImage: "photo",
                     description: Text("从列表中选择截图以查看原图与操作。")
                 )
@@ -106,7 +106,7 @@ struct LibraryView: View {
             }
         }
         .confirmationDialog(
-            "删除全部未收藏的截图？",
+            String(localized: "删除全部未收藏的截图？"),
             isPresented: $isConfirmingClearNonFavorites,
             titleVisibility: .visible
         ) {
@@ -118,7 +118,7 @@ struct LibraryView: View {
             Text("收藏的截图会保留；未收藏的原图与缩略图将被删除。")
         }
         .confirmationDialog(
-            "删除全部截图（含收藏）？",
+            String(localized: "删除全部截图（含收藏）？"),
             isPresented: $isConfirmingClearAll,
             titleVisibility: .visible
         ) {
@@ -130,7 +130,7 @@ struct LibraryView: View {
             Text("所有历史记录、原图与缩略图都会被删除，无法恢复。")
         }
         .confirmationDialog(
-            "删除这张截图？",
+            String(localized: "删除这张截图？"),
             isPresented: Binding(
                 get: { pendingDeletion != nil },
                 set: { if !$0 { pendingDeletion = nil } }
@@ -147,7 +147,7 @@ struct LibraryView: View {
             Text("原图与缩略图会从历史库删除，无法恢复。")
         }
         .alert(
-            "操作失败",
+            String(localized: "操作失败"),
             isPresented: Binding(
                 get: { errorMessage != nil },
                 set: { if !$0 { errorMessage = nil } }
@@ -201,9 +201,9 @@ struct LibraryView: View {
 
     private var emptyTitle: String {
         if !searchText.isEmpty {
-            return "没有匹配的截图"
+            return String(localized: "没有匹配的截图")
         }
-        return activeFilter == .favorites ? "还没有收藏" : "还没有截图"
+        return activeFilter == .favorites ? String(localized: "还没有收藏") : String(localized: "还没有截图")
     }
 
     private var emptySymbol: String {
@@ -215,12 +215,12 @@ struct LibraryView: View {
 
     private var emptyDescription: String {
         if !searchText.isEmpty {
-            return "尝试清除搜索条件或切换筛选。"
+            return String(localized: "尝试清除搜索条件或切换筛选。")
         }
         if activeFilter == .favorites {
-            return "在截图详情中点击心形按钮收藏。"
+            return String(localized: "在截图详情中点击心形按钮收藏。")
         }
-        return "按下区域截图快捷键或从菜单栏开始截图。\n会自动保存到历史。"
+        return String(localized: "按下区域截图快捷键或从菜单栏开始截图。\n会自动保存到历史。")
     }
 
     /// 清空历史；`includeFavorites` 决定是否连收藏一起删除。
@@ -284,7 +284,7 @@ struct LibraryView: View {
             }
             editor.open(
                 image: image,
-                title: "编辑截图",
+                title: String(localized: "编辑截图"),
                 target: .history(recordID: record.id, isFavorite: record.isFavorite)
             )
         }
@@ -294,7 +294,7 @@ struct LibraryView: View {
         Task {
             do {
                 try await actions.copyImage(record)
-                showMessage("已复制到剪贴板")
+                showMessage(String(localized: "已复制到剪贴板"))
             } catch {
                 report(error)
             }
@@ -305,7 +305,7 @@ struct LibraryView: View {
         Task {
             do {
                 if try await actions.saveAsPNG(record) {
-                    showMessage("已保存")
+                    showMessage(String(localized: "已保存"))
                 }
             } catch {
                 report(error)
@@ -317,7 +317,7 @@ struct LibraryView: View {
         Task {
             do {
                 if try await actions.pin(record) {
-                    showMessage("已贴图")
+                    showMessage(String(localized: "已贴图"))
                 }
             } catch {
                 report(error)
@@ -334,7 +334,7 @@ struct LibraryView: View {
     private func toggleFavorite(_ record: ScreenshotRecord) {
         do {
             try library.toggleFavorite(record)
-            showMessage(record.isFavorite ? "已收藏" : "已取消收藏")
+            showMessage(record.isFavorite ? String(localized: "已收藏") : String(localized: "已取消收藏"))
         } catch {
             report(error)
         }
@@ -348,7 +348,7 @@ struct LibraryView: View {
                 if selectedRecordID == record.id {
                     selectedRecordID = nil
                 }
-                showMessage("已删除")
+                showMessage(String(localized: "已删除"))
             } catch {
                 report(error)
             }

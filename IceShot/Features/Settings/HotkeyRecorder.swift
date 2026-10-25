@@ -121,7 +121,7 @@ final class HotkeyRecorder {
         case .rejectedDuplicate(let other):
             message = "该组合已用于「\(other.displayName)」，请换一个。"
         case .rejectedInvalid:
-            message = "全局快捷键至少需要 ⌘ / ⌃ / ⌥ 之一（功能键除外）。"
+            message = String(localized: "全局快捷键至少需要 ⌘ / ⌃ / ⌥ 之一（功能键除外）。")
         case .rejectedRegistrationFailure:
             message = "「\(binding?.displayString ?? "")」已被其它应用占用，已恢复到原快捷键。"
         }

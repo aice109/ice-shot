@@ -101,10 +101,10 @@ struct ToolOptionsPopover: View {
     /// 「块大小 / 半径 / 噪点大小」在当前样式下的叫法；纯色样式没有这个参数。
     private var amountTitle: String {
         switch model.optionsRedactionStyle {
-        case .mosaic: return "块大小"
-        case .blur: return "模糊半径"
-        case .noise: return "噪点大小"
-        case .solid: return "块大小"
+        case .mosaic: return String(localized: "块大小")
+        case .blur: return String(localized: "模糊半径")
+        case .noise: return String(localized: "噪点大小")
+        case .solid: return String(localized: "块大小")
         }
     }
 
@@ -160,11 +160,11 @@ struct ToolOptionsPopover: View {
                 .accessibilityLabel("亮区形状")
 
                 sliderSection(
-                    title: "压暗",
+                    title: String(localized: "压暗"),
                     value: "\(Int((model.optionsSpotlightDim * 100).rounded()))%",
                     binding: spotlightDimBinding,
                     range: SpotlightStyle.dimRange,
-                    accessibilityLabel: "压暗程度"
+                    accessibilityLabel: String(localized: "压暗程度")
                 ) { isEditing in
                     // 拖动中实时预览，松手才进撤销栈。
                     if !isEditing {
@@ -235,7 +235,7 @@ struct ToolOptionsPopover: View {
     /// 标题按组取（「形状」/「画笔」），不写死成「方式」——否则用户不知道自己正在切什么。
     private var subOptionSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            sectionTitle(subOptions.first?.toolGroup?.subOptionTitle ?? "方式")
+            sectionTitle(subOptions.first?.toolGroup?.subOptionTitle ?? String(localized: "方式"))
 
             // 等宽等高铺满一行：之前图标 + 文字各自撑宽度，点击区只有文字那么小。
             HStack(spacing: 6) {
@@ -272,7 +272,7 @@ struct ToolOptionsPopover: View {
     private var colorSection: some View {
         let swatches = ColorPalettePreferences.displayPalette(current: model.color)
         return VStack(alignment: .leading, spacing: 8) {
-            sectionTitle("颜色")
+            sectionTitle(String(localized: "颜色"))
 
             // 色块行在内容宽度内**居中**：色数变化时两侧留白才对称。
             // 间距按可用宽度收敛（最多 10 pt），色板临时补到 9 色也不会顶出边界。

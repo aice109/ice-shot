@@ -14,10 +14,10 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .all: return "全部"
-        case .favorites: return "收藏"
-        case .today: return "今天"
-        case .week: return "最近 7 天"
+        case .all: return String(localized: "全部")
+        case .favorites: return String(localized: "收藏")
+        case .today: return String(localized: "今天")
+        case .week: return String(localized: "最近 7 天")
         }
     }
 

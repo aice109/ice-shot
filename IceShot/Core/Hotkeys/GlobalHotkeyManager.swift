@@ -21,11 +21,11 @@ final class GlobalHotkeyManager {
 
         var displayName: String {
             switch self {
-            case .region: return "区域截图"
-            case .window: return "窗口截图"
-            case .fullScreen: return "全屏截图"
-            case .repeatRegion: return "重复上次区域"
-            case .scroll: return "长截图"
+            case .region: return String(localized: "区域截图")
+            case .window: return String(localized: "窗口截图")
+            case .fullScreen: return String(localized: "全屏截图")
+            case .repeatRegion: return String(localized: "重复上次区域")
+            case .scroll: return String(localized: "长截图")
             }
         }
 
@@ -98,7 +98,7 @@ final class GlobalHotkeyManager {
     }
 
     func label(for hotkey: Hotkey) -> String {
-        bindings[hotkey]?.displayString ?? "未设置"
+        bindings[hotkey]?.displayString ?? String(localized: "未设置")
     }
 
     /// 当前组合的冲突提示；空数组表示没有问题。

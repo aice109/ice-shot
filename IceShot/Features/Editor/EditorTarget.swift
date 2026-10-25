@@ -47,11 +47,11 @@ enum EditorTarget: Equatable, Sendable {
     var deleteHelp: String {
         switch self {
         case .standalone:
-            return "从历史库删除这张截图"
+            return String(localized: "从历史库删除这张截图")
         case .history(_, let isFavorite) where isFavorite:
-            return "已收藏的截图不会被自动清理，请先取消收藏再删除"
+            return String(localized: "已收藏的截图不会被自动清理，请先取消收藏再删除")
         case .history:
-            return "从历史库删除这张截图（⌘⌫）"
+            return String(localized: "从历史库删除这张截图（⌘⌫）")
         }
     }
 }

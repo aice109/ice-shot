@@ -169,13 +169,13 @@ struct MenuBarView: View {
 
                 // 延时是「区域截图」的修饰动作，紧跟主按钮，不再单独占一行。
                 Menu {
-                    delayItems(for: "区域") { startDelayedRegion(seconds: $0) }
+                    delayItems(for: String(localized: "区域")) { startDelayedRegion(seconds: $0) }
                     Divider()
-                    delayItems(for: "全屏") { startDelayedFullScreen(seconds: $0) }
+                    delayItems(for: String(localized: "全屏")) { startDelayedFullScreen(seconds: $0) }
                     Divider()
-                    delayItems(for: "窗口") { startDelayedWindow(seconds: $0) }
+                    delayItems(for: String(localized: "窗口")) { startDelayedWindow(seconds: $0) }
                     Divider()
-                    delayItems(for: "全部显示器") { startDelayedAllDisplays(seconds: $0) }
+                    delayItems(for: String(localized: "全部显示器")) { startDelayedAllDisplays(seconds: $0) }
                 } label: {
                     Image(systemName: "timer")
                 }

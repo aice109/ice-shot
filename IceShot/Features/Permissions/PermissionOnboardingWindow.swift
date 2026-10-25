@@ -64,7 +64,7 @@ final class PermissionOnboardingWindowController {
             }
         )
         let window = NSWindow(contentViewController: NSHostingController(rootView: view))
-        window.title = "屏幕录制权限"
+        window.title = String(localized: "屏幕录制权限")
         window.styleMask = [.titled, .closable]
         window.isReleasedWhenClosed = false
         window.center()
@@ -212,11 +212,11 @@ private struct PermissionOnboardingView: View {
     private var statusSummary: String {
         switch coordinator.permissionStatus {
         case .authorized:
-            return "屏幕录制权限：已授权"
+            return String(localized: "屏幕录制权限：已授权")
         case .notDetermined:
-            return "屏幕录制权限：尚未申请"
+            return String(localized: "屏幕录制权限：尚未申请")
         case .denied:
-            return "屏幕录制权限：未授权"
+            return String(localized: "屏幕录制权限：未授权")
         }
     }
 
@@ -237,18 +237,18 @@ private struct PermissionOnboardingView: View {
 
     private var hotkeyLine: String? {
         guard let hotkeys else {
-            return "启动后可点菜单栏的 IceShot 图标开始截图。"
+            return String(localized: "启动后可点菜单栏的 IceShot 图标开始截图。")
         }
         let hints = [
-            (GlobalHotkeyManager.Hotkey.region, "区域"),
-            (.window, "窗口"),
-            (.fullScreen, "全屏"),
-            (.repeatRegion, "重复上次区域"),
+            (GlobalHotkeyManager.Hotkey.region, String(localized: "区域")),
+            (.window, String(localized: "窗口")),
+            (.fullScreen, String(localized: "全屏")),
+            (.repeatRegion, String(localized: "重复上次区域")),
         ].compactMap { hotkey, name in
             hotkeys.binding(for: hotkey).map { "\($0.displayString) \(name)" }
         }
         guard !hints.isEmpty else {
-            return "启动后可点菜单栏的 IceShot 图标开始截图。"
+            return String(localized: "启动后可点菜单栏的 IceShot 图标开始截图。")
         }
         return "启动后可用菜单栏图标或快捷键：\(hints.joined(separator: " / "))。"
     }

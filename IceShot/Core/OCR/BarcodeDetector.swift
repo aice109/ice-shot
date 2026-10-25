@@ -19,8 +19,8 @@ struct DetectedBarcode: Identifiable, Equatable, Sendable {
     }
 
     var kindLabel: String {
-        guard let symbology else { return "条码" }
-        return symbology.contains("QR") ? "二维码" : "条码"
+        guard let symbology else { return String(localized: "条码") }
+        return symbology.contains("QR") ? String(localized: "二维码") : String(localized: "条码")
     }
 }
 

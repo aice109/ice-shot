@@ -24,10 +24,10 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		A61B49C850E1B154460961E2 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
-		09FB011530845CDB003C3FE0 /* IceShot.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = IceShot.app; path = "IceShot测试版.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		09FB011530845CDB003C3FE0 /* IceShot测试版.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "IceShot测试版.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		09FB012430845CDB003C3FE0 /* IceShotTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = IceShotTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		09FB012E30845CDB003C3FE0 /* IceShotUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = IceShotUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A61B49C850E1B154460961E2 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -81,7 +81,7 @@
 		09FB011630845CDB003C3FE0 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				09FB011530845CDB003C3FE0 /* IceShot.app */,
+				09FB011530845CDB003C3FE0 /* IceShot测试版.app */,
 				09FB012430845CDB003C3FE0 /* IceShotTests.xctest */,
 				09FB012E30845CDB003C3FE0 /* IceShotUITests.xctest */,
 			);
@@ -106,7 +106,7 @@
 			);
 			name = IceShot;
 			productName = IceShot;
-			productReference = 09FB011530845CDB003C3FE0 /* IceShot.app */;
+			productReference = 09FB011530845CDB003C3FE0 /* IceShot测试版.app */;
 			productType = "com.apple.product-type.application";
 		};
 		09FB012330845CDB003C3FE0 /* IceShotTests */ = {
@@ -175,9 +175,10 @@
 				};
 			};
 			buildConfigurationList = 09FB011030845CDB003C3FE0 /* Build configuration list for PBXProject "IceShot" */;
-			developmentRegion = en;
+			developmentRegion = "zh-Hans";
 			hasScannedForEncodings = 0;
 			knownRegions = (
+				"zh-Hans",
 				en,
 				Base,
 			);

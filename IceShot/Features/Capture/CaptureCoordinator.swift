@@ -114,11 +114,11 @@ final class CaptureCoordinator {
     var permissionSummary: String {
         switch permissionStatus {
         case .authorized:
-            return "屏幕录制权限：已授权"
+            return String(localized: "屏幕录制权限：已授权")
         case .notDetermined:
-            return "屏幕录制权限：尚未申请"
+            return String(localized: "屏幕录制权限：尚未申请")
         case .denied:
-            return "屏幕录制权限：未授权"
+            return String(localized: "屏幕录制权限：未授权")
         }
     }
 
@@ -433,8 +433,8 @@ final class CaptureCoordinator {
             presentEditor(frames: frames, preset: picked.preset, source: picked.source)
         } catch {
             guard state == .selecting else { return }
-            lastMessage = "这块区域截取失败，可继续拖拽框选"
-            feedback.show("截取失败")
+            lastMessage = String(localized: "这块区域截取失败，可继续拖拽框选")
+            feedback.show(String(localized: "截取失败"))
         }
     }
 
@@ -664,7 +664,7 @@ final class CaptureCoordinator {
         didActivateForCapture = false
         previousApplication = nil
         state = .idle
-        editor?.open(image: image, title: "长截图")
+        editor?.open(image: image, title: String(localized: "长截图"))
         Task { [weak self] in
             await self?.recordHistory([image], source: .scroll)
         }
@@ -706,23 +706,23 @@ final class CaptureCoordinator {
             y: display.appKitFrame.maxY - finish.result.rect.minY
         )
         guard let pins else {
-            lastMessage = "贴图不可用"
+            lastMessage = String(localized: "贴图不可用")
             return
         }
         pins.present(image: image, topLeft: topLeft)
-        lastMessage = "已贴图"
-        feedback.show("已贴图")
+        lastMessage = String(localized: "已贴图")
+        feedback.show(String(localized: "已贴图"))
     }
 
     private func copyResult(_ image: CGImage, isBatch: Bool) {
         do {
             try clipboard.copy(image)
             if isBatch {
-                lastMessage = "已复制当前显示器"
-                feedback.show("已复制当前屏")
+                lastMessage = String(localized: "已复制当前显示器")
+                feedback.show(String(localized: "已复制当前屏"))
             } else {
-                lastMessage = "已复制到剪贴板"
-                feedback.show("已复制")
+                lastMessage = String(localized: "已复制到剪贴板")
+                feedback.show(String(localized: "已复制"))
             }
         } catch {
             state = .failed(message(for: error))
@@ -747,8 +747,8 @@ final class CaptureCoordinator {
                 lastMessage = "已保存 \(savedCount) 张"
                 feedback.show("已保存 \(savedCount) 张")
             } else if savedCount == 1 {
-                lastMessage = "已保存"
-                feedback.show("已保存")
+                lastMessage = String(localized: "已保存")
+                feedback.show(String(localized: "已保存"))
             }
         } catch {
             state = .failed(message(for: error))
@@ -782,7 +782,7 @@ final class CaptureCoordinator {
         guard permissionStatus == .authorized else {
             restorePreviousApplication()
             state = .failed(
-                "需要屏幕录制权限。请在系统设置中允许 IceShot 录制屏幕，然后重启 IceShot 使其生效。"
+                String(localized: "需要屏幕录制权限。请在系统设置中允许 IceShot 录制屏幕，然后重启 IceShot 使其生效。")
             )
             // 打开原生引导窗口，让用户直接点按钮申请 / 跳到系统设置。
             NotificationCenter.default.post(name: .iceShotShowPermissionOnboarding, object: nil)
@@ -814,8 +814,8 @@ final class CaptureCoordinator {
             try await history.save(images, source: source, createdAt: Date())
             return true
         } catch {
-            lastMessage = "历史保存失败，截图仍可复制或保存。"
-            feedback.show("历史保存失败")
+            lastMessage = String(localized: "历史保存失败，截图仍可复制或保存。")
+            feedback.show(String(localized: "历史保存失败"))
             return false
         }
     }

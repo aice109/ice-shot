@@ -225,7 +225,7 @@ struct MarkupCanvas: View {
 
     /// 空输入时的提示文案：用同一个文字色降到 35% 透明度，不自带底色，不破所见即所得。
     private func textPlaceholder(_ frame: TextEditingFrame) -> some View {
-        let text = "输入文字"
+        let text = String(localized: "输入文字")
         let size = (text as NSString).size(withAttributes: [.font: Self.textFont(size: frame.fontSize)])
         let width = ceil(size.width)
         let height = ceil(size.height)
@@ -515,7 +515,7 @@ struct MarkupCanvas: View {
             if originalAnnotations != model.annotations {
                 model.commitLiveChange(
                     from: originalAnnotations,
-                    actionName: "移动标注"
+                    actionName: String(localized: "移动标注")
                 )
             }
         case .creatingCrop, .resizingCrop:

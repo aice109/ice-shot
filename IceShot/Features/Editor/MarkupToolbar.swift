@@ -121,7 +121,7 @@ struct MarkupToolbar: View {
     }
 
     private var cropSizeLabel: String {
-        guard let crop = model.cropRect else { return "裁剪" }
+        guard let crop = model.cropRect else { return String(localized: "裁剪") }
         return "\(Int(crop.width)) × \(Int(crop.height)) px"
     }
 
@@ -292,7 +292,7 @@ struct MarkupToolbar: View {
         switch group {
         case .shape: base = "形状：当前「\(represented.title)」"
         case .brush: base = "画笔：当前「\(represented.title)」"
-        case .more: return model.isMoreExpanded ? "收起更多工具" : "更多工具"
+        case .more: return model.isMoreExpanded ? String(localized: "收起更多工具") : String(localized: "更多工具")
         }
         let shortcut = represented.shortcut.map { "（\(String($0).uppercased())）" } ?? ""
         guard represented == model.tool else {
@@ -418,8 +418,8 @@ struct MarkupToolbar: View {
             HStack(spacing: Layout.itemSpacing) {
                 iconButton(
                     "arrow.uturn.backward",
-                    label: "撤销",
-                    help: "撤销（⌘Z）",
+                    label: String(localized: "撤销"),
+                    help: String(localized: "撤销（⌘Z）"),
                     disabled: !model.canUndo
                 ) {
                     model.undo()
@@ -427,8 +427,8 @@ struct MarkupToolbar: View {
 
                 iconButton(
                     "arrow.uturn.forward",
-                    label: "重做",
-                    help: "重做（⇧⌘Z）",
+                    label: String(localized: "重做"),
+                    help: String(localized: "重做（⇧⌘Z）"),
                     disabled: !model.canRedo
                 ) {
                     model.redo()
@@ -464,8 +464,8 @@ struct MarkupToolbar: View {
     /// 复制在两处的语义不同（浮层复制并结束、编辑器复制后留着继续改），提示文案要跟着变。
     private var copyHelp: String {
         switch context {
-        case .overlay: return "复制到剪贴板并关闭（Return）"
-        case .editor: return "复制到剪贴板（⌘C）"
+        case .overlay: return String(localized: "复制到剪贴板并关闭（Return）")
+        case .editor: return String(localized: "复制到剪贴板（⌘C）")
         }
     }
 

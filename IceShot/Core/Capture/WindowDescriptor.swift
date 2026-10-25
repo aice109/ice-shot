@@ -40,11 +40,11 @@ struct WindowDescriptor: Sendable, Identifiable, Hashable {
     }
 
     var displayName: String {
-        if isMenuBarSurface { return "菜单栏" }
-        if isDesktopSurface { return "桌面" }
+        if isMenuBarSurface { return String(localized: "菜单栏") }
+        if isDesktopSurface { return String(localized: "桌面") }
         let trimmedTitle = title?.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let trimmedTitle, !trimmedTitle.isEmpty else {
-            return ownerName.isEmpty ? "未命名窗口" : ownerName
+            return ownerName.isEmpty ? String(localized: "未命名窗口") : ownerName
         }
         guard !ownerName.isEmpty else {
             return trimmedTitle

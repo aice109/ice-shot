@@ -87,7 +87,7 @@ struct PaletteEditor: View {
     private var removeHelp: String {
         palette.count <= ColorPalettePreferences.minimumCount
             ? "至少保留 \(ColorPalettePreferences.minimumCount) 色"
-            : "删掉这一格颜色"
+            : String(localized: "删掉这一格颜色")
     }
 
     private var constraintHint: String? {

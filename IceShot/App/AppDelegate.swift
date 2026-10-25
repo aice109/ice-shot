@@ -38,7 +38,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             runtime = try LibraryRuntimeFactory.make(inMemory: isTestHost)
         } catch {
             startupError = (error as? LocalizedError)?.errorDescription
-                ?? "历史库初始化失败。"
+                ?? String(localized: "历史库初始化失败。")
         }
 
         let pins = PinBoard()
@@ -110,20 +110,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApplication.shared.activate()
 
         let hotkeyHints = [
-            (GlobalHotkeyManager.Hotkey.region, "区域"),
-            (.window, "窗口"),
-            (.fullScreen, "全屏"),
-            (.repeatRegion, "重复上次区域"),
+            (GlobalHotkeyManager.Hotkey.region, String(localized: "区域")),
+            (.window, String(localized: "窗口")),
+            (.fullScreen, String(localized: "全屏")),
+            (.repeatRegion, String(localized: "重复上次区域")),
         ].compactMap { hotkey, name in
             hotkeys.binding(for: hotkey).map { "\($0.displayString) \(name)" }
         }
         let hotkeyLine = hotkeyHints.isEmpty
-            ? "从菜单栏的 IceShot 图标选择截图动作。"
+            ? String(localized: "从菜单栏的 IceShot 图标选择截图动作。")
             : "可从菜单栏的 IceShot 图标开始，或使用 \(hotkeyHints.joined(separator: " / ")) 截图。"
 
         let alert = NSAlert()
         alert.alertStyle = .informational
-        alert.messageText = "IceShot 已在菜单栏运行"
+        alert.messageText = String(localized: "IceShot 已在菜单栏运行")
         alert.informativeText = """
         \(hotkeyLine)
         截图会保存到本机历史库，可在菜单栏打开「历史记录」查看。

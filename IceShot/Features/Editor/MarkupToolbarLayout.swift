@@ -163,10 +163,10 @@ enum MarkupToolbarLayout {
 
         var title: String {
             switch self {
-            case .rotateClockwise: return "顺时针旋转 90°"
-            case .rotateCounterClockwise: return "逆时针旋转 90°"
-            case .flipHorizontal: return "水平翻转"
-            case .flipVertical: return "垂直翻转"
+            case .rotateClockwise: return String(localized: "顺时针旋转 90°")
+            case .rotateCounterClockwise: return String(localized: "逆时针旋转 90°")
+            case .flipHorizontal: return String(localized: "水平翻转")
+            case .flipVertical: return String(localized: "垂直翻转")
             }
         }
 

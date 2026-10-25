@@ -1,0 +1,3 @@
+/* App name shown in the menu bar and Dock */
+"CFBundleDisplayName" = "IceShot";
+"CFBundleName" = "IceShot";

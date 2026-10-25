@@ -168,7 +168,7 @@ final class EditorModel {
             updateSelection(nil)
         }
         isTextPicking = enabled
-        statusMessage = enabled ? "拖动选择图中文字，⌘C 复制；Esc 退出" : nil
+        statusMessage = enabled ? String(localized: "拖动选择图中文字，⌘C 复制；Esc 退出") : nil
         // 取字模式下工具胶囊整条换成提示条，展开态留着没有意义。
         if enabled {
             setMoreExpanded(false)
@@ -353,12 +353,12 @@ final class EditorModel {
 
     /// 粗细滑块松手：整段拖动只记一个撤销步骤。
     func commitWidthChange() {
-        commitStyleChange(actionName: "调整标注粗细")
+        commitStyleChange(actionName: String(localized: "调整标注粗细"))
     }
 
     /// 滑块松手：整段拖动只记一个撤销步骤。
     func commitFilterChange() {
-        commitStyleChange(actionName: "调整打码强度")
+        commitStyleChange(actionName: String(localized: "调整打码强度"))
     }
 
     // MARK: - 聚光灯
@@ -414,7 +414,7 @@ final class EditorModel {
     }
 
     func commitSpotlightChange() {
-        commitStyleChange(actionName: "调整聚光灯")
+        commitStyleChange(actionName: String(localized: "调整聚光灯"))
     }
 
     /// 改选中聚光灯标注的样式；拖动类调用先拍快照，松手才进撤销栈。
@@ -489,7 +489,7 @@ final class EditorModel {
         guard tool == .crop else { return }
         cropRect = nil
         setTool(.select)
-        statusMessage = "已取消裁剪"
+        statusMessage = String(localized: "已取消裁剪")
     }
 
     /// 应用裁剪：图像与标注整体作为一步撤销记录。范围未变时不产生撤销项。
@@ -499,11 +499,11 @@ final class EditorModel {
         guard crop != CGRect(origin: .zero, size: imageSize) else {
             cropRect = nil
             setTool(.select)
-            statusMessage = "裁剪范围未变化"
+            statusMessage = String(localized: "裁剪范围未变化")
             return false
         }
         guard let cropped = try? ImageCropper.crop(image, to: crop) else {
-            statusMessage = "裁剪失败，请重新选择范围"
+            statusMessage = String(localized: "裁剪失败，请重新选择范围")
             return false
         }
 
@@ -516,7 +516,7 @@ final class EditorModel {
         statusMessage = "已裁剪为 \(cropped.width) × \(cropped.height) px"
         onToolChange?(tool)
         onImageChange?()
-        registerUndo(previous, actionName: "裁剪")
+        registerUndo(previous, actionName: String(localized: "裁剪"))
         return true
     }
 
@@ -527,12 +527,12 @@ final class EditorModel {
     func rotate(clockwise: Bool) -> Bool {
         guard !isCropping else { return false }
         guard let rotated = try? ImageTransformer.rotated(image, clockwise: clockwise) else {
-            statusMessage = "旋转失败"
+            statusMessage = String(localized: "旋转失败")
             return false
         }
         applyImage(
             rotated,
-            actionName: clockwise ? "顺时针旋转" : "逆时针旋转"
+            actionName: clockwise ? String(localized: "顺时针旋转") : String(localized: "逆时针旋转")
         ) { annotations, size in
             AnnotationTransformer.rotated(
                 annotations,
@@ -549,12 +549,12 @@ final class EditorModel {
     func flip(horizontal: Bool) -> Bool {
         guard !isCropping else { return false }
         guard let flipped = try? ImageTransformer.flipped(image, horizontal: horizontal) else {
-            statusMessage = "翻转失败"
+            statusMessage = String(localized: "翻转失败")
             return false
         }
         applyImage(
             flipped,
-            actionName: horizontal ? "水平翻转" : "垂直翻转"
+            actionName: horizontal ? String(localized: "水平翻转") : String(localized: "垂直翻转")
         ) { annotations, size in
             AnnotationTransformer.flipped(
                 annotations,
@@ -644,7 +644,7 @@ final class EditorModel {
         if selectedID == id {
             updateSelection(nil)
         }
-        registerUndo(previous, actionName: "删除标注")
+        registerUndo(previous, actionName: String(localized: "删除标注"))
     }
 
     func commitLiveChange(

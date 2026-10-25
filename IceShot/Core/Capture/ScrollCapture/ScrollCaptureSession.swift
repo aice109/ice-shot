@@ -97,7 +97,7 @@ final class ScrollCaptureSession {
                 return
             } catch {
                 // 单帧失败（例如窗口切换瞬间）不终止会话，下一帧继续尝试。
-                publish(message: "抓取失败，正在重试…")
+                publish(message: String(localized: "抓取失败，正在重试…"))
             }
             try? await Task.sleep(for: Self.captureInterval)
         }
@@ -125,14 +125,14 @@ final class ScrollCaptureSession {
             idleFrames += 1
             publish(
                 message: idleFrames >= Self.idleFrameThreshold
-                    ? "看起来已经滚到底了，点「完成」结束"
-                    : "等待滚动…"
+                    ? String(localized: "看起来已经滚到底了，点「完成」结束")
+                    : String(localized: "等待滚动…")
             )
         case .rejectedJump:
             idleFrames += 1
-            publish(message: "滚动太快，慢一点效果更好")
+            publish(message: String(localized: "滚动太快，慢一点效果更好"))
         case .limitReached(let totalHeight):
-            publish(message: "已达到高度上限，正在结束…", height: totalHeight)
+            publish(message: String(localized: "已达到高度上限，正在结束…"), height: totalHeight)
             finish()
         }
     }

@@ -22,23 +22,23 @@ enum CaptureError: LocalizedError, Sendable {
     var errorDescription: String? {
         switch self {
         case .permissionDenied:
-            return "需要屏幕录制权限。请在系统设置中允许 IceShot 录制屏幕。"
+            return String(localized: "需要屏幕录制权限。请在系统设置中允许 IceShot 录制屏幕。")
         case .noDisplays:
-            return "没有找到可用的显示器。"
+            return String(localized: "没有找到可用的显示器。")
         case .displayUnavailable:
-            return "显示器不可用，请检查连接后重试。"
+            return String(localized: "显示器不可用，请检查连接后重试。")
         case .noWindows:
-            return "没有找到可截取的窗口。请先打开一个窗口，或改用区域截图。"
+            return String(localized: "没有找到可截取的窗口。请先打开一个窗口，或改用区域截图。")
         case .windowUnavailable:
-            return "窗口已关闭或不可用，请重新选择。"
+            return String(localized: "窗口已关闭或不可用，请重新选择。")
         case .captureFailed(let code):
             return "截图失败（错误码 \(code)）。请重试。"
         case .captureBlank:
-            return "这扇窗口没有可截取的内容，请改用区域框选。"
+            return String(localized: "这扇窗口没有可截取的内容，请改用区域框选。")
         case .invalidSelection:
-            return "选区无效，请重新选择。"
+            return String(localized: "选区无效，请重新选择。")
         case .encodingFailed:
-            return "图片编码失败。"
+            return String(localized: "图片编码失败。")
         case .saveFailed(let code):
             return "保存失败（错误码 \(code)）。请检查磁盘空间或权限。"
         }

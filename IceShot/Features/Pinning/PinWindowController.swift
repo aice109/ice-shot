@@ -161,11 +161,11 @@ final class PinWindowController: NSWindowController, NSWindowDelegate, Identifia
 
     func makeContextMenu() -> NSMenu {
         let menu = NSMenu()
-        menu.addItem(menuItem("复制", action: #selector(copyAction)))
-        menu.addItem(menuItem("恢复原始大小与不透明度", action: #selector(resetAction)))
+        menu.addItem(menuItem(String(localized: "复制"), action: #selector(copyAction)))
+        menu.addItem(menuItem(String(localized: "恢复原始大小与不透明度"), action: #selector(resetAction)))
         menu.addItem(.separator())
 
-        let opacityItem = NSMenuItem(title: "不透明度", action: nil, keyEquivalent: "")
+        let opacityItem = NSMenuItem(title: String(localized: "不透明度"), action: nil, keyEquivalent: "")
         let submenu = NSMenu()
         for level in Self.opacityLevels {
             let item = menuItem("\(Int(level * 100))%", action: #selector(setOpacityAction(_:)))
@@ -176,12 +176,12 @@ final class PinWindowController: NSWindowController, NSWindowDelegate, Identifia
         opacityItem.submenu = submenu
         menu.addItem(opacityItem)
 
-        let throughItem = menuItem("点击穿透", action: #selector(toggleClickThroughAction))
+        let throughItem = menuItem(String(localized: "点击穿透"), action: #selector(toggleClickThroughAction))
         throughItem.state = isClickThrough ? .on : .off
         menu.addItem(throughItem)
 
         menu.addItem(.separator())
-        menu.addItem(menuItem("关闭贴图", action: #selector(closeAction)))
+        menu.addItem(menuItem(String(localized: "关闭贴图"), action: #selector(closeAction)))
         return menu
     }
 

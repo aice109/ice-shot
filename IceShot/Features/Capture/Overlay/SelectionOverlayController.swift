@@ -237,7 +237,7 @@ final class SelectionOverlayController: SelectionOverlayPresenting {
         )
         overlayState.update(displayID: displayID, rect: rect)
         overlayState.beginEditing(
-            editor: EditorModel(image: image, title: "截图"),
+            editor: EditorModel(image: image, title: String(localized: "截图")),
             imageFrame: imageFrame,
             allowsAdjustment: allowsAdjustment
         )

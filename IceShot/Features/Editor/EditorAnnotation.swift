@@ -152,9 +152,9 @@ enum EditorTool: String, CaseIterable, Identifiable {
         /// 浮窗里子型行的标题：告诉用户正在切的是哪一组，不写成笼统的「方式」。
         var subOptionTitle: String {
             switch self {
-            case .shape: return "形状"
-            case .brush: return "画笔"
-            case .more: return "更多"
+            case .shape: return String(localized: "形状")
+            case .brush: return String(localized: "画笔")
+            case .more: return String(localized: "更多")
             }
         }
     }
@@ -173,19 +173,19 @@ enum EditorTool: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .select: return "选择"
-        case .crop: return "裁剪"
-        case .rectangle: return "矩形"
-        case .ellipse: return "椭圆"
-        case .line: return "直线"
-        case .arrow: return "箭头"
-        case .freehand: return "画笔"
-        case .highlighter: return "高亮"
-        case .text: return "文字"
-        case .number: return "序号"
-        case .pixelate: return "马赛克"
-        case .spotlight: return "聚光灯"
-        case .magnifier: return "放大镜"
+        case .select: return String(localized: "选择")
+        case .crop: return String(localized: "裁剪")
+        case .rectangle: return String(localized: "矩形")
+        case .ellipse: return String(localized: "椭圆")
+        case .line: return String(localized: "直线")
+        case .arrow: return String(localized: "箭头")
+        case .freehand: return String(localized: "画笔")
+        case .highlighter: return String(localized: "高亮")
+        case .text: return String(localized: "文字")
+        case .number: return String(localized: "序号")
+        case .pixelate: return String(localized: "马赛克")
+        case .spotlight: return String(localized: "聚光灯")
+        case .magnifier: return String(localized: "放大镜")
         }
     }
 
@@ -261,10 +261,10 @@ enum RedactionStyle: String, CaseIterable, Identifiable, Sendable {
 
     var title: String {
         switch self {
-        case .mosaic: return "马赛克"
-        case .blur: return "模糊"
-        case .noise: return "噪点"
-        case .solid: return "纯色"
+        case .mosaic: return String(localized: "马赛克")
+        case .blur: return String(localized: "模糊")
+        case .noise: return String(localized: "噪点")
+        case .solid: return String(localized: "纯色")
         }
     }
 
@@ -301,18 +301,18 @@ enum AnnotationKind: String, Sendable {
 
     var displayName: String {
         switch self {
-        case .rectangle: return "矩形"
-        case .ellipse: return "椭圆"
-        case .line: return "直线"
-        case .arrow: return "箭头"
-        case .freehand: return "画笔"
-        case .highlighter: return "高亮"
-        case .text: return "文字"
-        case .number: return "序号"
-        case .pixelate: return "马赛克"
-        case .blur: return "模糊"
-        case .spotlight: return "聚光灯"
-        case .magnifier: return "放大镜"
+        case .rectangle: return String(localized: "矩形")
+        case .ellipse: return String(localized: "椭圆")
+        case .line: return String(localized: "直线")
+        case .arrow: return String(localized: "箭头")
+        case .freehand: return String(localized: "画笔")
+        case .highlighter: return String(localized: "高亮")
+        case .text: return String(localized: "文字")
+        case .number: return String(localized: "序号")
+        case .pixelate: return String(localized: "马赛克")
+        case .blur: return String(localized: "模糊")
+        case .spotlight: return String(localized: "聚光灯")
+        case .magnifier: return String(localized: "放大镜")
         }
     }
 
@@ -343,9 +343,9 @@ enum TextBackgroundStyle: String, CaseIterable, Identifiable, Sendable {
 
     var title: String {
         switch self {
-        case .none: return "无"
-        case .solid: return "实底"
-        case .translucent: return "半透"
+        case .none: return String(localized: "无")
+        case .solid: return String(localized: "实底")
+        case .translucent: return String(localized: "半透")
         }
     }
 
@@ -376,8 +376,8 @@ enum AreaShape: String, CaseIterable, Identifiable, Sendable {
 
     var title: String {
         switch self {
-        case .ellipse: return "椭圆"
-        case .rectangle: return "矩形"
+        case .ellipse: return String(localized: "椭圆")
+        case .rectangle: return String(localized: "矩形")
         }
     }
 }

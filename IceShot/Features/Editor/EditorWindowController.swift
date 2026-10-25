@@ -51,7 +51,7 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
-        window.title = "编辑截图"
+        window.title = String(localized: "编辑截图")
         window.titlebarAppearsTransparent = true
         // 标题栏不挡内容：内容从玻璃标题栏之下透上来。
         window.titleVisibility = .hidden
@@ -97,12 +97,12 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
     private func configureToolbar() {
         guard deletionTarget != nil, let window else { return }
         let item = NSToolbarItem(itemIdentifier: .deleteScreenshot)
-        item.label = "删除"
-        item.paletteLabel = "删除截图"
+        item.label = String(localized: "删除")
+        item.paletteLabel = String(localized: "删除截图")
         item.toolTip = target.deleteHelp
         item.image = NSImage(
             systemSymbolName: "trash",
-            accessibilityDescription: "删除截图"
+            accessibilityDescription: String(localized: "删除截图")
         )
         item.isBordered = true
         item.target = self
@@ -255,32 +255,32 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
     /// 贴图：把当前渲染结果（含标注）贴成置顶浮动窗口。
     private func pinAction() {
         guard let pins else {
-            presentError("当前环境不支持贴图。")
+            presentError(String(localized: "当前环境不支持贴图。"))
             return
         }
         guard let image = model.renderedImage() else {
-            presentError("无法生成编辑后的截图。")
+            presentError(String(localized: "无法生成编辑后的截图。"))
             return
         }
         pins.present(image: image)
-        model.statusMessage = "已贴图"
+        model.statusMessage = String(localized: "已贴图")
     }
 
     private func copyAction() {
         guard let image = model.renderedImage() else {
-            presentError("无法生成编辑后的截图。")
+            presentError(String(localized: "无法生成编辑后的截图。"))
             return
         }
         do {
             model.statusMessage = try MarkupOutput.copy(image)
         } catch {
-            presentError((error as? LocalizedError)?.errorDescription ?? "复制失败。")
+            presentError((error as? LocalizedError)?.errorDescription ?? String(localized: "复制失败。"))
         }
     }
 
     private func saveAction() {
         guard let image = model.renderedImage() else {
-            presentError("无法生成编辑后的截图。")
+            presentError(String(localized: "无法生成编辑后的截图。"))
             return
         }
         do {
@@ -288,7 +288,7 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
                 model.statusMessage = message
             }
         } catch {
-            presentError((error as? LocalizedError)?.errorDescription ?? "保存失败。")
+            presentError((error as? LocalizedError)?.errorDescription ?? String(localized: "保存失败。"))
         }
     }
 
@@ -311,8 +311,8 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
 
         let alert = NSAlert()
         alert.alertStyle = .warning
-        alert.messageText = "删除这张截图？"
-        alert.informativeText = "原图与缩略图会从历史库删除，无法恢复。"
+        alert.messageText = String(localized: "删除这张截图？")
+        alert.informativeText = String(localized: "原图与缩略图会从历史库删除，无法恢复。")
         alert.addButton(withTitle: "删除")
         alert.addButton(withTitle: "取消")
         // 默认按钮是「删除」：回车就删不是好默认，把焦点放到「取消」上。
@@ -328,11 +328,11 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
     private var deletionBlockedMessage: String {
         switch target {
         case .standalone:
-            return "这张图不在历史库里，没有可删除的记录（关闭窗口即可）"
+            return String(localized: "这张图不在历史库里，没有可删除的记录（关闭窗口即可）")
         case .history(_, let isFavorite) where isFavorite:
-            return "已收藏的截图不会被自动清理，请先取消收藏再删除"
+            return String(localized: "已收藏的截图不会被自动清理，请先取消收藏再删除")
         case .history:
-            return "当前无法删除"
+            return String(localized: "当前无法删除")
         }
     }
 
@@ -342,7 +342,7 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
             do {
                 // `false` = 记录已经不在了（被别处删过 / 被清理策略清掉），按已删掉处理。
                 _ = try await deleter.deleteRecord(id: recordID)
-                self.model.statusMessage = "已删除"
+                self.model.statusMessage = String(localized: "已删除")
                 self.window?.close()
             } catch {
                 self.presentError(
@@ -357,7 +357,7 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
         guard let window else { return }
         let alert = NSAlert()
         alert.alertStyle = .warning
-        alert.messageText = "编辑器操作失败"
+        alert.messageText = String(localized: "编辑器操作失败")
         alert.informativeText = message
         alert.addButton(withTitle: "好")
         alert.beginSheetModal(for: window)

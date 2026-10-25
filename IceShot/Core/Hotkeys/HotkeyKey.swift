@@ -98,7 +98,7 @@ enum HotkeyKey {
 
         UInt32(kVK_Return): KeyDescription(name: "↩", character: nil),
         UInt32(kVK_Tab): KeyDescription(name: "⇥", character: nil),
-        UInt32(kVK_Space): KeyDescription(name: "空格", character: nil),
+        UInt32(kVK_Space): KeyDescription(name: String(localized: "空格"), character: nil),
         UInt32(kVK_Delete): KeyDescription(name: "⌫", character: nil),
         UInt32(kVK_ForwardDelete): KeyDescription(name: "⌦", character: nil),
         UInt32(kVK_Escape): KeyDescription(name: "⎋", character: nil),

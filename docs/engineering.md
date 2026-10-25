@@ -99,6 +99,27 @@ Features ──→ Core
 
 ---
 
+## 本地化
+
+代码里的 UI 文案一律写**中文原文**，中文就是开发语言（`developmentRegion = zh-Hans`）。
+英文走 `IceShot/en.lproj/Localizable.strings`，中文不需要 `.strings`（字面量即原文）。
+
+**两种写法，别弄混：**
+
+| 上下文 | 写法 | 为什么 |
+| --- | --- | --- |
+| SwiftUI 控件 | `Text("保存")` | 字面量本就是 `LocalizedStringKey`，自动本地化 |
+| 返回 `String` / 赋值 | `String(localized: "保存")` | 裸字面量不参与本地化，必须显式包 |
+
+**新增文案时一定要同步 `en.lproj/Localizable.strings`**——
+`LocalizationTests` 会把漏翻、译文残留中文、占位符数量不一致三类回归当失败。
+
+插值字符串（`"已旋转 \(angle)°"`）目前不做本地化：
+`String(localized:)` 收的是 `LocalizationValue`，内嵌表达式和引号很容易写坏。
+真要本地化就先拆成 `%@` 占位 + `String(format:)`。
+
+---
+
 ## 提交与 CHANGELOG
 
 ### 提交信息

@@ -62,22 +62,22 @@ struct HotkeyBinding: Hashable, Sendable, Codable {
     /// Carbon 不会因为「系统菜单快捷键」而注册失败，这一类冲突只能靠静态清单提示。
     private static let systemConflicts: [HotkeyBinding: String] = [
         HotkeyBinding(keyCode: HotkeyKey.code3, modifiers: [.command, .shift]):
-            "与系统截图（⇧⌘3 / 4 / 5 / 6）冲突，注册后会抢占系统截图。",
+            String(localized: "与系统截图（⇧⌘3 / 4 / 5 / 6）冲突，注册后会抢占系统截图。"),
         HotkeyBinding(keyCode: HotkeyKey.code4, modifiers: [.command, .shift]):
-            "与系统截图（⇧⌘3 / 4 / 5 / 6）冲突，注册后会抢占系统截图。",
+            String(localized: "与系统截图（⇧⌘3 / 4 / 5 / 6）冲突，注册后会抢占系统截图。"),
         HotkeyBinding(keyCode: HotkeyKey.code5, modifiers: [.command, .shift]):
-            "与系统截图（⇧⌘3 / 4 / 5 / 6）冲突，注册后会抢占系统截图。",
+            String(localized: "与系统截图（⇧⌘3 / 4 / 5 / 6）冲突，注册后会抢占系统截图。"),
         HotkeyBinding(keyCode: HotkeyKey.code6, modifiers: [.command, .shift]):
-            "与系统截图（⇧⌘3 / 4 / 5 / 6）冲突，注册后会抢占系统截图。",
+            String(localized: "与系统截图（⇧⌘3 / 4 / 5 / 6）冲突，注册后会抢占系统截图。"),
         HotkeyBinding(keyCode: HotkeyKey.codeW, modifiers: [.command, .shift]):
-            "与绝大多数 App 的「关闭窗口」（⇧⌘W）冲突，注册后它们将无法使用该组合。",
+            String(localized: "与绝大多数 App 的「关闭窗口」（⇧⌘W）冲突，注册后它们将无法使用该组合。"),
         HotkeyBinding(keyCode: HotkeyKey.codeQ, modifiers: [.command, .shift]):
-            "与系统「退出登录」（⇧⌘Q）冲突，建议避开。",
+            String(localized: "与系统「退出登录」（⇧⌘Q）冲突，建议避开。"),
         HotkeyBinding(keyCode: HotkeyKey.codeTab, modifiers: .command):
-            "与系统「切换 App」（⌘⇥）冲突，注册后会失效。",
+            String(localized: "与系统「切换 App」（⌘⇥）冲突，注册后会失效。"),
         HotkeyBinding(keyCode: HotkeyKey.codeSpace, modifiers: .command):
-            "与系统「聚焦搜索 / Spotlight」（⌘Space）冲突，注册后会失效。",
+            String(localized: "与系统「聚焦搜索 / Spotlight」（⌘Space）冲突，注册后会失效。"),
         HotkeyBinding(keyCode: HotkeyKey.codeEscape, modifiers: [.command, .option]):
-            "与系统「强制退出」（⌥⌘⎋）冲突，注册后会失效。",
+            String(localized: "与系统「强制退出」（⌥⌘⎋）冲突，注册后会失效。"),
     ]
 }

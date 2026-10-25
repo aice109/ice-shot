@@ -21,7 +21,7 @@ struct LibraryWindowView: View {
                 .frame(minWidth: 820, minHeight: 520)
         } else {
             ContentUnavailableView(
-                "历史库不可用",
+                String(localized: "历史库不可用"),
                 systemImage: "externaldrive.badge.exclamationmark",
                 description: Text(startupError ?? "无法打开本机历史记录存储。")
             )

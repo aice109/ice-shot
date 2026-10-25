@@ -40,11 +40,11 @@ struct MarkupActions {
 enum MarkupOutput {
     static func copy(_ image: CGImage) throws -> String {
         try ClipboardWriter().copy(image)
-        return "已复制到剪贴板"
+        return String(localized: "已复制到剪贴板")
     }
 
     /// 返回 `nil` 表示用户在保存面板里取消了。
     static func save(_ image: CGImage) throws -> String? {
-        try SavePanel.savePNG(image) ? "已保存" : nil
+        try SavePanel.savePNG(image) ? String(localized: "已保存") : nil
     }
 }

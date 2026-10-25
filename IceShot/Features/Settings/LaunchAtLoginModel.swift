@@ -36,7 +36,7 @@ final class LaunchAtLoginModel {
     var systemHint: String? {
         switch state {
         case .requiresApproval:
-            return "系统里这个登录项被关掉了：到「系统设置 > 通用 > 登录项」重新打开 IceShot。"
+            return String(localized: "系统里这个登录项被关掉了：到「系统设置 > 通用 > 登录项」重新打开 IceShot。")
         case .enabled, .disabled:
             return nil
         }
@@ -48,10 +48,10 @@ final class LaunchAtLoginModel {
     /// 所以要提前讲清楚，而不是等 `register()` 抛一个用户看不懂的错。
     var locationHint: String? {
         if bundlePath.contains("/AppTranslocation/") {
-            return "当前是从下载目录直接打开的临时副本：先把 IceShot 拖到「应用程序」再打开，才能注册登录项。"
+            return String(localized: "当前是从下载目录直接打开的临时副本：先把 IceShot 拖到「应用程序」再打开，才能注册登录项。")
         }
         if bundlePath.hasPrefix("/Volumes/") {
-            return "当前正在从磁盘映像里运行：先把 IceShot 拖到「应用程序」再打开，才能注册登录项。"
+            return String(localized: "当前正在从磁盘映像里运行：先把 IceShot 拖到「应用程序」再打开，才能注册登录项。")
         }
         return nil
     }

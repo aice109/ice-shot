@@ -14,15 +14,15 @@ enum LibraryError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .storageUnavailable:
-            return "无法打开历史记录存储。请检查磁盘空间与应用沙盒权限。"
+            return String(localized: "无法打开历史记录存储。请检查磁盘空间与应用沙盒权限。")
         case .fileWriteFailed:
-            return "截图写入历史记录失败。请检查磁盘空间。"
+            return String(localized: "截图写入历史记录失败。请检查磁盘空间。")
         case .fileDeleteFailed:
-            return "删除历史记录文件失败。请稍后重试。"
+            return String(localized: "删除历史记录文件失败。请稍后重试。")
         case .thumbnailFailed:
-            return "生成截图缩略图失败。"
+            return String(localized: "生成截图缩略图失败。")
         case .recordSaveFailed:
-            return "保存历史记录元数据失败。"
+            return String(localized: "保存历史记录元数据失败。")
         }
     }
 }

@@ -13,11 +13,11 @@ enum ScreenshotSource: String, CaseIterable, Sendable {
 
     var displayName: String {
         switch self {
-        case .region: return "区域"
-        case .window: return "窗口"
-        case .display: return "全屏"
-        case .allDisplays: return "全部显示器"
-        case .scroll: return "长截图"
+        case .region: return String(localized: "区域")
+        case .window: return String(localized: "窗口")
+        case .display: return String(localized: "全屏")
+        case .allDisplays: return String(localized: "全部显示器")
+        case .scroll: return String(localized: "长截图")
         }
     }
 

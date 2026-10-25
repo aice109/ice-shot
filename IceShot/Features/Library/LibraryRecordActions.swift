@@ -64,7 +64,7 @@ enum LibraryActionError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .originalMissing:
-            return "这张截图的原图已不在磁盘上，可能被清理掉了。可以删除这条记录。"
+            return String(localized: "这张截图的原图已不在磁盘上，可能被清理掉了。可以删除这条记录。")
         }
     }
 }
