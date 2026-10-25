@@ -118,6 +118,13 @@ final class SelectionOverlayController: SelectionOverlayPresenting {
             panel.onTextPickingEscape = { [weak self] in
                 self?.exitTextPickingIfNeeded() ?? false
             }
+            // 指针位置由面板级监视器实时上报：不依赖 SwiftUI hover 的追踪区，
+            // 指针停在手柄 / 工具条 / 层间空隙上也能正常跟手（见 `CaptureOverlayPanel`）。
+            let displayID = frame.display.id
+            panel.onPointerMoved = { [weak overlayState] point in
+                overlayState?.updatePointer(point, displayID: displayID)
+            }
+            panel.startPointerTracking()
             panel.contentView = FirstMouseHostingView(
                 rootView: AnyView(view.feedbackHUD(feedback))
             )
@@ -132,17 +139,34 @@ final class SelectionOverlayController: SelectionOverlayPresenting {
             panelsByDisplayID[preset.displayID]?.makeKey()
         } else {
             let cursor = NSEvent.mouseLocation
-            if let keyPanel = panels.first(where: { $0.frame.contains(cursor) }) {
+            // 边界点也要算进去：指针恰好压在屏幕最上一行 / 最右一列时，
+            // `CGRect.contains` 的半开区间会把它判成「哪块屏都不是」。
+            if let keyPanel = panels.first(where: {
+                OverlayCoordinates.containsInclusive($0.frame, cursor)
+            }) {
                 keyPanel.makeKey()
             } else {
                 panels.first?.makeKey()
             }
+        }
+
+        // 首帧播种：浮层出现时指针已经停在某处，而指针不动就不会有鼠标移动事件；
+        // 不先写一次的话，框选前的那一格光标要等用户移一下鼠标才正确。
+        // 换算与面板鼠标监视器 / `SelectionOverlayView` 共用 `OverlayCoordinates`。
+        for frame in frames {
+            guard let point = OverlayCoordinates.viewPoint(
+                fromScreen: NSEvent.mouseLocation,
+                displayFrame: frame.display.appKitFrame
+            ) else { continue }
+            overlayState.updatePointer(point, displayID: frame.display.id)
         }
     }
 
     func dismiss() {
         for panel in panels {
             panel.allowsClose = true
+            panel.stopPointerTracking()
+            panel.onPointerMoved = nil
             panel.orderOut(nil)
             panel.close()
             panel.contentView = nil
@@ -258,7 +282,9 @@ final class SelectionOverlayController: SelectionOverlayPresenting {
         }
 
         if event.keyCode == 49 { // Space：选区阶段用于拖移已有选区
-            overlayState.setSpacePressed(event.type == .keyDown)
+            if !event.isARepeat {
+                overlayState.setSpacePressed(event.type == .keyDown)
+            }
             return nil
         }
 
@@ -278,7 +304,13 @@ final class SelectionOverlayController: SelectionOverlayPresenting {
         state: SelectionOverlayState
     ) -> NSEvent? {
         if event.keyCode == 49, state.allowsAdjustment { // Space：按住时拖移选区
-            state.setSpacePressed(event.type == .keyDown)
+            // 重复 keyDown 不解状态：长按时系统每秒派发十几条，
+            // 每次都赋值虽然已经被 `setSpacePressed` 去重，但没必要白跑。
+            // 真正的响铃问题在 `FirstMouseHostingView.keyDown`——那里把 Space
+            // 从 SwiftUI 键盘系统手里截下来，见该类的注释。
+            if !event.isARepeat {
+                state.setSpacePressed(event.type == .keyDown)
+            }
             return nil
         }
 
