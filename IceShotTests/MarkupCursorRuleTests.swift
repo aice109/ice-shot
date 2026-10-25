@@ -78,6 +78,15 @@ struct MarkupCursorRuleTests {
         #expect(cursor(.select) == .arrow)
     }
 
+    // MARK: - 拖动已有标注
+
+    @Test("拖动已有标注全程抓紧，不随指针落到哪里而变")
+    func movingAnnotationStaysClosedHand() {
+        for tool in EditorTool.allCases where tool != .crop {
+            #expect(cursor(tool, dragging: true, movingAnnotation: true) == .closedHand)
+        }
+    }
+
     // MARK: - 图外
 
     @Test("图外一律箭头，不显示任何可绘制 / 可拖动的暗示")
@@ -85,5 +94,31 @@ struct MarkupCursorRuleTests {
         for tool in EditorTool.allCases {
             #expect(cursor(tool, inside: false) == .arrow)
         }
+    }
+
+    // MARK: - 绘制中必须是十字
+
+    @Test("绘制类工具拖拽中恒为十字，即使指针正好压在已有标注上")
+    func drawingIsAlwaysCrosshair() {
+        let tools: [EditorTool] = [
+            .rectangle, .ellipse, .line, .arrow, .freehand,
+            .highlighter, .number, .pixelate, .spotlight, .magnifier
+        ]
+        for tool in tools {
+            // 不压标注
+            #expect(cursor(tool, dragging: true) == .crosshair)
+            // 压在已有标注上（刚画完的图形就在笔尖下，最容易错判成手形）
+            #expect(cursor(tool, overAnnotation: true, dragging: true) == .crosshair)
+        }
+    }
+
+    @Test("笔尖下的新标注不算「悬停已有标注」：松手后仍是十字")
+    func freshAnnotationUnderCursorKeepsCrosshair() {
+        // 松手那一帧：指针在图上、刚画的图形就在指针下。
+        // 调用方（`MarkupCanvas.justDrawnID`）会把这个命中屏蔽成
+        // `isOverAnnotation: false`，于是规则给出十字。
+        #expect(cursor(.rectangle, overAnnotation: false) == .crosshair)
+        // 对照：一旦指针离开它、再移回来，钩子清掉后就是正常的抓手。
+        #expect(cursor(.rectangle, overAnnotation: true) == .openHand)
     }
 }

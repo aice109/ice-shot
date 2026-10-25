@@ -575,23 +575,80 @@ struct EditorAnnotation: Identifiable, Equatable, Sendable {
     }
 
     func hitTest(_ point: CGPoint, tolerance: CGFloat = 7) -> Bool {
+        // 「命中」= 这个位置按下后真的会改到东西。
+        //
+        // 矩形 / 椭圆的**内部是空白的**（它们是 `stroke`，不填充），
+        // 以前用整框判定，导致框中间那片空白也能把标注抓走，
+        // 光标在那里显示抓手却什么都没抓到。现在只认真正被画到的笔画。
+        let reach = max(tolerance, style.lineWidth / 2 + 3)
         switch kind {
         case .line, .arrow:
-            return distanceToSegment(point, start, end) <= max(tolerance, style.lineWidth / 2 + 3)
+            return distanceToSegment(point, start, end) <= reach
         case .freehand, .highlighter, .pixelate, .blur:
             guard points.count > 1 else {
                 return points.first.map { distance($0, point) <= tolerance } ?? false
             }
             for index in 1..<points.count {
-                if distanceToSegment(point, points[index - 1], points[index])
-                    <= max(tolerance, style.lineWidth / 2 + 3) {
+                if distanceToSegment(point, points[index - 1], points[index]) <= reach {
                     return true
                 }
             }
             return false
-        case .rectangle, .ellipse, .text, .number, .spotlight, .magnifier:
+        case .rectangle:
+            // 四条边，不含内部空白。
+            return hitTestRectEdges(point, rect: bounds, reach: reach)
+        case .ellipse:
+            // 椭圆周长，不含内部空白。
+            return hitTestEllipseEdge(point, rect: bounds, reach: reach)
+        case .text, .number, .spotlight, .magnifier:
+            // 这几种在区域上是实心的（文字有字块、序号有徽章、
+            // 聚光灯整体压暗、放大镜框内有内容），整框命中是诚实的。
             return bounds.insetBy(dx: -tolerance, dy: -tolerance).contains(point)
         }
+    }
+
+    /// 距矩形四条边是否在 `reach` 内（内部空白不算）。
+    private func hitTestRectEdges(_ point: CGPoint, rect: CGRect, reach: CGFloat) -> Bool {
+        // 高度为 0 的矩形退化成一条横线，宽度为 0 退化成竖线；
+        // 两者都按线段处理，否则内缩区算不出来，整个外扩框都会被判命中。
+        guard rect.width > 0, rect.height > 0 else {
+            if rect.width <= 0, rect.height <= 0 {
+                return distance(point, CGPoint(x: rect.midX, y: rect.midY)) <= reach
+            }
+            let a = CGPoint(x: rect.minX, y: rect.minY)
+            let b = CGPoint(x: rect.maxX, y: rect.maxY)
+            return distanceToSegment(point, a, b) <= reach
+        }
+        let outer = rect.insetBy(dx: -reach, dy: -reach)
+        guard outer.contains(point) else { return false }
+        // 落在「向内缩 reach」的核心区里 = 空白，不算命中。
+        let inner = rect.insetBy(dx: reach, dy: reach)
+        if inner.width > 0, inner.height > 0, inner.contains(point) {
+            return false
+        }
+        return true
+    }
+
+    /// 距椭圆周长是否在 `reach` 内（内部空白不算）。
+    private func hitTestEllipseEdge(_ point: CGPoint, rect: CGRect, reach: CGFloat) -> Bool {
+        let radiusX = rect.width / 2
+        let radiusY = rect.height / 2
+        guard radiusX > 0, radiusY > 0 else { return false }
+
+        let centerX = rect.midX
+        let centerY = rect.midY
+        let dx = point.x - centerX
+        let dy = point.y - centerY
+
+        // 归一化椭圆距离：1 = 正好在周长上。
+        let normalized = (dx * dx) / (radiusX * radiusX) + (dy * dy) / (radiusY * radiusY)
+
+        // 把 `reach` 换算成归一化增量：用两轴的平均半径近似，
+        // 误差在小 `reach` 下可以忽略，且不会在极扁的椭圆上算出 0 宽的热区。
+        let scale = max((radiusX + radiusY) / 2, 1)
+        let band = reach / scale
+
+        return abs(sqrt(normalized) - 1) <= band
     }
 
     /// 选中虚线框范围：描边类标注把笔宽算进去，框住实际涂抹区域。

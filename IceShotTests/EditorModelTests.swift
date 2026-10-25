@@ -34,7 +34,13 @@ struct EditorModelTests {
                 opacity: 1
             )
         )
-        #expect(annotation.hitTest(CGPoint(x: 60, y: 30)))
+        // 矩形是**描边不填充**的：命中只算四条边，中间空白不算。
+        // 这与光标规则一致（中间空白处不显示抓手）。
+        #expect(annotation.hitTest(CGPoint(x: 60, y: 10)), "上边")
+        #expect(annotation.hitTest(CGPoint(x: 60, y: 60)), "下边")
+        #expect(annotation.hitTest(CGPoint(x: 10, y: 35)), "左边")
+        #expect(annotation.hitTest(CGPoint(x: 110, y: 35)), "右边")
+        #expect(!annotation.hitTest(CGPoint(x: 60, y: 35)), "中间空白不应命中")
         #expect(!annotation.hitTest(CGPoint(x: 200, y: 200)))
 
         let moved = annotation.offsetBy(dx: 20, dy: -5)
