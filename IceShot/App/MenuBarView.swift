@@ -46,14 +46,13 @@ struct MenuBarView: View {
 
     /// 面板宽度按**当前生效**的界面语言取。
     ///
-    /// 截图按钮带文字（「全屏截图」→ "Full Screen Capture"），英文比中文长得多，
-    /// 所以英文下要给更宽的容器。用 `Bundle.main` 而不是系统语言：
-    /// 用户可能把 IceShot 单独指定成英文而系统是中文，那时按系统语言算宽度就会截断。
-    ///
-    /// 底部工具行改成纯图标后不再影响宽度，两个值只服务截图区与历史/贴图行。
+    /// 截图按钮与底部工具行都带文字（「全屏截图」→ "Full Screen Capture"、
+    /// 「获取新版本…」→ "Get New Version…"），英文比中文长得多，要给更宽的容器。
+    /// 用 `Bundle.main` 而不是系统语言：用户可能把 IceShot 单独指定成英文而系统是中文，
+    /// 那时按系统语言算宽度就会截断。
     private static var panelWidth: CGFloat {
         let isEnglish = Bundle.main.preferredLocalizations.first?.hasPrefix("en") ?? false
-        return isEnglish ? 360 : 320
+        return isEnglish ? 380 : 320
     }
 
     private var header: some View {
@@ -354,20 +353,21 @@ struct MenuBarView: View {
         .help("管理屏幕上的贴图")
     }
 
-    /// 面板底部工具行：设置 · 获取新版本 ……… 退出。
+    /// 面板底部：设置 / 获取新版本 / 退出，一行三个文字按钮。
     ///
-    /// 三个动作都是面板级次要操作，不属于截图区，所以不跟上面的 `.bordered` 按钮同一套外观。
+    /// 这是菜单栏面板最常见的形式，也跟本面板其它按钮同一套外观：
+    /// 三个都是「面板级操作」、彼此平级，用同样的 `.bordered` 排成整齐一行。
     ///
-    /// **按「图标是否是通用符号」分开处理**，不是一刀切：
-    /// - 设置（齿轮）、退出（电源）是跨应用通用的形状，图标足够表达，不写文字；
-    /// - 「获取新版本」是本应用特有的动作，图标语义模糊——箭头方框可以指导出、分享、
-    ///   打开链接，用户猜不到是「去下载新版」。这类必须带文字。
+    /// 早前试过两个方向，都不如这个：
+    /// - 纯图标：齿轮和电源认得，但「获取新版本」的箭头方框语焉不详；
+    /// - 图标 + 文字混排：两个图标一个文字，视觉不成组，怎么摆都不齐。
     ///
-    /// 位置也按这个分组：左边是本应用的功能入口（设置 + 更新），右边锚定退出。
-    /// 带文字的那一项靠 `fixedSize` 不参与压缩，左边容器再紧也只会挤掉留白。
+    /// **不用等宽**：三个按钮按各自内容取宽、整行居中。等宽会让
+    /// 「获取新版本…」这种长文案被迫缩字（实测中文要 107%、英文 135% 的宽度），
+    /// 反而更难读；按内容取宽则每个按钮都是自然大小，视觉重量由文案长度自然体现。
     private var footer: some View {
-        HStack(spacing: 2) {
-            footerIconButton(
+        HStack(spacing: 8) {
+            footerButton(
                 title: "设置…",
                 symbol: "gearshape",
                 help: "打开设置（⌘,）"
@@ -375,9 +375,7 @@ struct MenuBarView: View {
                 openSettingsWindow()
             }
 
-            // 文字版：英文 "Get New Version" 比中文长得多，所以不放在固定宽度容器里，
-            // 用 `fixedSize` 让按钮按自身内容取宽，剩下的空间全给 `Spacer`。
-            footerTextButton(
+            footerButton(
                 title: "获取新版本…",
                 symbol: "arrow.up.right.square",
                 help: "在浏览器里打开最新版本的发布页（IceShot 自身不联网）"
@@ -386,44 +384,21 @@ struct MenuBarView: View {
                 NSWorkspace.shared.open(ProjectLinks.latestRelease)
             }
 
-            Spacer(minLength: 8)
-
-            footerIconButton(
-                title: "退出 IceShot",
+            footerButton(
+                title: "退出",
                 symbol: "power",
                 help: "退出 IceShot"
             ) {
                 NSApplication.shared.terminate(nil)
             }
         }
+        // 整行居中：三个按钮自然宽度之和在面板里居中，
+        // 两侧留白相等，读起来是一个完整的工具行。
+        .frame(maxWidth: .infinity, alignment: .center)
     }
 
-    /// 底部工具行的**通用符号**按钮：只显示图标，标题进 tooltip 与无障碍标签。
-    ///
-    /// 只给齿轮 / 电源这类跨应用都认得的形状用。
-    private func footerIconButton(
-        title: LocalizedStringKey,
-        symbol: String,
-        help: LocalizedStringKey,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            Label(title, systemImage: symbol)
-                // 只显示图标；标题仍会进无障碍树。
-                .labelStyle(.iconOnly)
-                .font(.system(size: 15))
-                .frame(width: 30, height: 26)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.borderless)
-        .help(help)
-        .accessibilityLabel(title)
-    }
-
-    /// 底部工具行的**带文字**按钮：图标表达不清的动作用这个。
-    ///
-    /// `fixedSize` 让它按自身内容取宽，不会被 `HStack` 压缩成省略号。
-    private func footerTextButton(
+    /// 底部的一个文字按钮：按自身内容取宽，不参与压缩。
+    private func footerButton(
         title: LocalizedStringKey,
         symbol: String,
         help: LocalizedStringKey,
@@ -434,11 +409,9 @@ struct MenuBarView: View {
                 .font(.callout)
                 .lineLimit(1)
                 .fixedSize()
-                .padding(.horizontal, 6)
-                .frame(height: 26)
-                .contentShape(Rectangle())
         }
-        .buttonStyle(.borderless)
+        .buttonStyle(.bordered)
+        .controlSize(.large)
         .help(help)
         .accessibilityLabel(title)
     }
