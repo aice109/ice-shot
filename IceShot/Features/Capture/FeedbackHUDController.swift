@@ -42,7 +42,7 @@ final class FeedbackHUDController {
                 .font(.callout)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 9)
-                .glassSurface(contrast: .elevated, in: Capsule())
+                .glassSurface(.clear, contrast: .none, in: Capsule())
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         )
         panel.orderFrontRegardless()

@@ -16,6 +16,9 @@ enum MarkupToolbarLayout {
     /// 组间额外留白：叠加在 `itemSpacing` 上（6 + 8 = 14）。组靠留白分开，不用分隔线。
     static let groupExtraGap: CGFloat = 8
     /// 胶囊之间的留白。
+    ///
+    /// 与 `MarkupToolbar` 里 `GlassGroup(spacing: 12)` 配合：间距落在吸附距离之内，
+    /// 两组胶囊靠得近时会真实融成一体（液态吸附），拉开时又各自独立。
     static let clusterSpacing: CGFloat = 10
     /// 图标点击区：比字形大一圈，按钮之间才有呼吸。
     ///

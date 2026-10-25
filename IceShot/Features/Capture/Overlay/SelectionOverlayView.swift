@@ -716,7 +716,7 @@ struct SelectionOverlayView: View {
                 .font(.caption)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 7)
-                .glassSurface(contrast: .elevated, in: Capsule())
+                .glassSurface(.clear, contrast: .none, in: Capsule())
                 .padding(.bottom, 24)
         }
         .frame(maxWidth: bounds.width)
@@ -734,7 +734,7 @@ struct SelectionOverlayView: View {
                 .font(.caption)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 7)
-                .glassSurface(contrast: .elevated, in: Capsule())
+                .glassSurface(.clear, contrast: .none, in: Capsule())
                 .padding(.bottom, 24)
         }
         .frame(maxWidth: bounds.width)
@@ -889,7 +889,7 @@ private struct SizeLabel: View {
             .font(.caption.monospacedDigit())
             .padding(.horizontal, 8)
             .padding(.vertical, 5)
-            .glassSurface(contrast: .elevated, in: Capsule())
+            .glassSurface(.clear, contrast: .none, in: Capsule())
     }
 }
 

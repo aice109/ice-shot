@@ -45,11 +45,19 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
 
         let window = EditorWindow(
             contentRect: NSRect(x: 0, y: 0, width: 1080, height: 740),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            // `.fullSizeContentView` + 透明标题栏：内容一直铺到窗口顶，
+            // 标题栏才能是系统液态玻璃的一部分，而不是一条不透明的横条。
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
         window.title = "编辑截图"
+        window.titlebarAppearsTransparent = true
+        // 标题栏不挡内容：内容从玻璃标题栏之下透上来。
+        window.titleVisibility = .hidden
+        // 窗口自身不填色，交给 `EditorRootView` 里的玻璃背景与系统合成。
+        window.isOpaque = false
+        window.backgroundColor = .clear
         window.subtitle = "\(image.width) × \(image.height) px"
         window.minSize = NSSize(width: 640, height: 460)
         window.isReleasedWhenClosed = false

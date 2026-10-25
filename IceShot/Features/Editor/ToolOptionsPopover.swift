@@ -263,7 +263,7 @@ struct ToolOptionsPopover: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .glassControlStyle(prominent: isCurrent)
+        .glassControlStyle(prominent: isCurrent, clear: true)
         .help(tool.shortcut.map { "\(tool.title)（\(String($0).uppercased())）" } ?? tool.title)
         .accessibilityLabel(tool.title)
         .accessibilityAddTraits(isCurrent ? [.isSelected] : [])

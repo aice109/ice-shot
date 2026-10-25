@@ -162,14 +162,14 @@ private struct CountdownHUDView: View {
             Button("取消") {
                 state.onCancel()
             }
-            .buttonStyle(.bordered)
+            .glassControlStyle()
             .help("取消延时截图（Esc）")
         }
         .padding(18)
         .frame(width: 220, height: 150)
         .glassSurface(
-            .interactive,
-            contrast: .elevated,
+            .clear,
+            contrast: .none,
             in: RoundedRectangle(cornerRadius: 20, style: .continuous)
         )
     }

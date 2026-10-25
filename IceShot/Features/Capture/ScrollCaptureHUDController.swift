@@ -116,7 +116,7 @@ private struct ScrollCaptureHUDView: View {
         }
         .padding(12)
         .frame(width: 340)
-        .glassSurface(.interactive, contrast: .elevated, in: RoundedRectangle(cornerRadius: 12))
+        .glassSurface(.clear, contrast: .none, in: RoundedRectangle(cornerRadius: 12))
         .padding(4)
     }
 }

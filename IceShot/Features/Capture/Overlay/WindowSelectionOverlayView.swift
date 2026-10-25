@@ -63,7 +63,7 @@ struct WindowSelectionOverlayView: View {
                         .font(.caption)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 7)
-                        .glassSurface(contrast: .elevated, in: Capsule())
+                        .glassSurface(.clear, contrast: .none, in: Capsule())
                         .padding(.bottom, 24)
                 }
                 .frame(maxWidth: .infinity)

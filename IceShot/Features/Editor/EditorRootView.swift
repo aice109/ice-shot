@@ -33,7 +33,14 @@ struct EditorRootView: View {
 
             statusBar
         }
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background {
+            // 窗口背景交给系统材质：26 上它就是液态玻璃的一层，
+            // 写死 `windowBackgroundColor` 会把系统玻璃整个盖掉。
+            // 低于 26 回退到 `.regularMaterial`，视觉不至于变成空透明。
+            Color.clear
+                .glassSurface(.regular, in: Rectangle())
+                .ignoresSafeArea()
+        }
         .onAppear {
             model.attachUndoManager(undoManager)
         }

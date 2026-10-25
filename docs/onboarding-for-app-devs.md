@@ -489,8 +489,9 @@ NSBitmapImageRep / CGContext / CIContext   位图与像素操作
 
 先读 `docs/ui-guidelines.md`，然后记住三条硬规则：
 
-- **材质交给系统**：用 `.glassSurface(.elevated)` / `.glassSurface(.standard)`，
+- **材质交给系统**：浮层用 `.glassSurface(.clear, in: 形状)`，窗口底用 `.glassSurface(.regular, ...)`，
   **不准** `.background(.ultraThinMaterial).opacity(0.7)` 这种手绘模糊+自调透明度。
+  玻璃强度由系统设置决定，**不要自己加染色托底**（默认 `contrast: .none`）。
 - **颜色不准硬编码**：用 `Color(nsColor: .windowBackgroundColor)`、`.labelColor`、`.accentColor`。
 - **正文用语义字号**：`.caption` / `.callout` / `.headline`，不写死 `12pt`。
   固定点数只允许在"压在截图上的标记" / "全屏 HUD 大数字" / "图标尺寸"三种场景。

@@ -725,7 +725,7 @@ struct MarkupCanvas: View {
                 .font(.caption.monospacedDigit())
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .glassSurface(.regular, contrast: .elevated, in: Capsule())
+                .glassSurface(.clear, contrast: .none, in: Capsule())
                 .position(x: labelX, y: labelY)
         }
         .allowsHitTesting(false)

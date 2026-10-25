@@ -27,34 +27,51 @@ struct MarkupToolbar: View {
     private typealias Layout = MarkupToolbarLayout
 
     var body: some View {
-        GlassGroup {
+        // `spacing` 略大于 `clusterSpacing`：两组胶囊在贴合时能真实融成一体（液态吸附），
+        // 又不会因为距离过近而粘成一坨。低于 26 时它只是个普通容器，值无副作用。
+        GlassGroup(spacing: 12) {
             if model.isCropping {
                 cluster { cropBar }
+                    .glassMorphID(Self.barMorphID, in: glassNamespace)
             } else if model.isTextPicking {
                 cluster { textPickingBar }
+                    .glassMorphID(Self.barMorphID, in: glassNamespace)
             } else {
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: Layout.clusterSpacing) {
                         cluster { toolCluster }
+                            .glassMorphID(Self.toolBarMorphID, in: glassNamespace)
                         cluster { actionCluster }
+                            .glassMorphID(Self.actionBarMorphID, in: glassNamespace)
                     }
                     // 窄窗口（编辑器最小 640 pt）放不下一行时改成两行，仍然居中。
                     VStack(spacing: Layout.clusterSpacing) {
                         cluster { toolCluster }
+                            .glassMorphID(Self.toolBarMorphID, in: glassNamespace)
                         cluster { actionCluster }
+                            .glassMorphID(Self.actionBarMorphID, in: glassNamespace)
                     }
                 }
             }
         }
     }
 
-    /// 一个玻璃胶囊。它压在任意截图内容上，所以用 `.elevated` 拿到对比基线
-    /// （见 `GlassSurface.swift`：最透玻璃不提供底衬，字形要靠语义染色托底）。
+    /// 玻璃形状变形的公共命名空间：同 id 的玻璃在增删时互相流动。
+    @Namespace private var glassNamespace
+
+    // 模式条的 id 与工具条区分开：裁剪 / 取字是「整条替换」，
+    // 和工具条 ↔ 动作条那种「半条变化」不是同一次变形。
+    private static let barMorphID = "toolbar-mode-bar"
+    private static let toolBarMorphID = "toolbar-tools"
+    private static let actionBarMorphID = "toolbar-actions"
+
+    /// 一个玻璃胶囊。压在任意截图内容上，用最透的 `.clear`——
+    /// 液态玻璃的强度由系统设置决定，应用不额外染色托底。
     private func cluster<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
         content()
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
-            .glassSurface(.interactive, contrast: .elevated, in: Capsule())
+            .glassSurface(.clear, contrast: .none, in: Capsule())
     }
 
     // MARK: - 模式条
@@ -211,7 +228,7 @@ struct MarkupToolbar: View {
                 .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        .glassControlStyle(prominent: model.isMoreExpanded)
+        .glassControlStyle(prominent: model.isMoreExpanded, clear: true)
         .help(model.isMoreExpanded ? "收起更多工具" : "更多工具")
         .accessibilityLabel(model.isMoreExpanded ? "收起更多工具" : "更多工具")
         .accessibilityAddTraits(model.isMoreExpanded ? [.isSelected] : [])
@@ -237,7 +254,7 @@ struct MarkupToolbar: View {
                 .frame(width: Layout.iconSide, height: Layout.iconSide)
         }
         // 高亮＝「当前工具在这个组里」，与旁边的单工具格同一条语义。
-        .glassControlStyle(prominent: isCurrent)
+        .glassControlStyle(prominent: isCurrent, clear: true)
         .help(groupHelp(group, represented: represented))
         .accessibilityLabel(groupHelp(group, represented: represented))
         .accessibilityAddTraits(isCurrent ? [.isSelected] : [])
@@ -295,7 +312,7 @@ struct MarkupToolbar: View {
                 .fontWeight(.medium)
                 .frame(width: Layout.iconSide, height: Layout.iconSide)
         }
-        .glassControlStyle(prominent: model.optionsTarget == .transform)
+        .glassControlStyle(prominent: model.optionsTarget == .transform, clear: true)
         .help("旋转与翻转")
         .accessibilityLabel("旋转与翻转")
         .popover(isPresented: transformBinding, arrowEdge: .bottom) {
@@ -361,7 +378,7 @@ struct MarkupToolbar: View {
                     .fontWeight(.medium)
                     .frame(width: Layout.iconSide, height: Layout.iconSide)
             }
-            .glassControlStyle(prominent: model.optionsTarget == .selectedAnnotation)
+            .glassControlStyle(prominent: model.optionsTarget == .selectedAnnotation, clear: true)
             .help(selection.help)
             .accessibilityLabel(selection.help)
             .padding(.leading, 4)
@@ -510,7 +527,7 @@ struct MarkupToolbar: View {
                 .frame(width: Layout.iconSide, height: Layout.iconSide)
         }
         // 选中态用强调色玻璃（`.glassProminent`），不靠半透明灰差——最透玻璃下也一眼可辨。
-        .glassControlStyle(prominent: isCurrent)
+        .glassControlStyle(prominent: isCurrent, clear: true)
         .help(toolHelp(tool))
         .accessibilityLabel(tool.title)
         .accessibilityAddTraits(isCurrent ? [.isSelected] : [])

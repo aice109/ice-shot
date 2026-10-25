@@ -71,7 +71,8 @@ struct MagnifierView: View {
         .padding(6)
         .frame(width: outerSize.width, height: outerSize.height)
         .glassSurface(
-            contrast: .elevated,
+            .clear,
+            contrast: .none,
             in: RoundedRectangle(cornerRadius: 12, style: .continuous)
         )
         .accessibilityHidden(true)

@@ -61,7 +61,7 @@ struct LiveTextOverlay: View {
                     .controlSize(.small)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
-                    .glassSurface(.regular, contrast: .elevated, in: Capsule())
+                    .glassSurface(.clear, contrast: .none, in: Capsule())
                     .allowsHitTesting(false)
             }
         }

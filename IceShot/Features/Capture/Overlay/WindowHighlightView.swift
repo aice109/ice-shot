@@ -48,6 +48,6 @@ struct WindowNameLabel: View {
             .truncationMode(.tail)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .glassSurface(contrast: .elevated, in: Capsule())
+            .glassSurface(.clear, contrast: .none, in: Capsule())
     }
 }
