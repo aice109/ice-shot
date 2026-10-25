@@ -356,18 +356,18 @@ struct MenuBarView: View {
 
     /// 面板底部工具行：设置 · 获取新版本 ……… 退出。
     ///
-    /// 三个都是面板级次要动作，不属于截图区，所以不跟上面的 `.bordered` 按钮同一套外观：
-    /// 这里用无边框**图标**按钮，靠「左侧放工具、右侧放退出」的位置关系表达分组，
-    /// 既不用分隔线，也不用换行。
+    /// 三个动作都是面板级次要操作，不属于截图区，所以不跟上面的 `.bordered` 按钮同一套外观。
     ///
-    /// 不写文字是刻意的：英文文案比中文长得多（「获取新版本…」→ Get New Version…），
-    /// 带文字的版本在窄面板里必然被椭掉。名字放进 tooltip 与无障碍标签，
-    /// 这也是 macOS 菜单栏面板的惯例做法。
+    /// **按「图标是否是通用符号」分开处理**，不是一刀切：
+    /// - 设置（齿轮）、退出（电源）是跨应用通用的形状，图标足够表达，不写文字；
+    /// - 「获取新版本」是本应用特有的动作，图标语义模糊——箭头方框可以指导出、分享、
+    ///   打开链接，用户猜不到是「去下载新版」。这类必须带文字。
     ///
-    /// 退出锚在最右：左边内容再长也压不到它，不会随语言漂移。
+    /// 位置也按这个分组：左边是本应用的功能入口（设置 + 更新），右边锚定退出。
+    /// 带文字的那一项靠 `fixedSize` 不参与压缩，左边容器再紧也只会挤掉留白。
     private var footer: some View {
         HStack(spacing: 2) {
-            footerButton(
+            footerIconButton(
                 title: "设置…",
                 symbol: "gearshape",
                 help: "打开设置（⌘,）"
@@ -375,7 +375,9 @@ struct MenuBarView: View {
                 openSettingsWindow()
             }
 
-            footerButton(
+            // 文字版：英文 "Get New Version" 比中文长得多，所以不放在固定宽度容器里，
+            // 用 `fixedSize` 让按钮按自身内容取宽，剩下的空间全给 `Spacer`。
+            footerTextButton(
                 title: "获取新版本…",
                 symbol: "arrow.up.right.square",
                 help: "在浏览器里打开最新版本的发布页（IceShot 自身不联网）"
@@ -386,7 +388,7 @@ struct MenuBarView: View {
 
             Spacer(minLength: 8)
 
-            footerButton(
+            footerIconButton(
                 title: "退出 IceShot",
                 symbol: "power",
                 help: "退出 IceShot"
@@ -396,8 +398,10 @@ struct MenuBarView: View {
         }
     }
 
-    /// 底部工具行的一个图标按钮：文字只进无障碍标签与 tooltip，不占布局。
-    private func footerButton(
+    /// 底部工具行的**通用符号**按钮：只显示图标，标题进 tooltip 与无障碍标签。
+    ///
+    /// 只给齿轮 / 电源这类跨应用都认得的形状用。
+    private func footerIconButton(
         title: LocalizedStringKey,
         symbol: String,
         help: LocalizedStringKey,
@@ -409,6 +413,29 @@ struct MenuBarView: View {
                 .labelStyle(.iconOnly)
                 .font(.system(size: 15))
                 .frame(width: 30, height: 26)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.borderless)
+        .help(help)
+        .accessibilityLabel(title)
+    }
+
+    /// 底部工具行的**带文字**按钮：图标表达不清的动作用这个。
+    ///
+    /// `fixedSize` 让它按自身内容取宽，不会被 `HStack` 压缩成省略号。
+    private func footerTextButton(
+        title: LocalizedStringKey,
+        symbol: String,
+        help: LocalizedStringKey,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: symbol)
+                .font(.callout)
+                .lineLimit(1)
+                .fixedSize()
+                .padding(.horizontal, 6)
+                .frame(height: 26)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.borderless)
