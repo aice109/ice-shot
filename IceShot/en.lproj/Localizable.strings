@@ -330,3 +330,5 @@ Screenshots are saved to history automatically.";
 "菜单「截图 > 延时截图」倒计时结束后开始区域截图；倒计时期间可取消。" = "Capture > Delayed Capture starts a region capture after the countdown; you can cancel during the countdown.";
 "标注文字" = "Annotation text";
 "重复上次" = "Repeat Last";
+"关闭；原图已保存到历史（Esc）" = "Close; the original was saved to history (Esc)";
+"贴到屏幕上（⇧⌘P）" = "Pin to screen (⇧⌘P)";

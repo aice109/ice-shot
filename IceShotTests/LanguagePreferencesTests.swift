@@ -64,10 +64,72 @@ struct LanguagePreferencesTests {
         #expect(LanguagePreferences.currentChoice(from: defaults) == .system)
     }
 
-    /// 「跟随系统」无从判断用户期望什么，永远不该提示重启。
-    @Test func systemChoiceNeverNeedsRestart() {
-        let bundle = Bundle(for: BundleAnchor.self)
-        #expect(!LanguagePreferences.needsRestart(choice: .system, bundle: bundle))
+    /// 真正带两份 `.lproj` 的 bundle。
+    ///
+    /// 不能用 `Bundle(for: BundleAnchor.self)`：那是测试 bundle，本地化列表
+    /// 和 App 不一样（往往只有 `en`），拿它验证语言映射会得到假结果。
+    private func appBundle() -> Bundle {
+        Bundle.main
+    }
+
+    /// 「跟随系统」也要能判出需要重启。
+    ///
+    /// 旧实现这里直接 `return false`，于是用户从「English」切回「跟随系统」时，
+    /// 若系统是中文，画面纹丝不动也没有任何提示。
+    @Test func systemChoiceNeedsRestartWhenSystemLanguageDiffers() {
+        let bundle = appBundle()
+        guard let active = LanguagePreferences.activeLanguageCode(bundle: bundle) else {
+            Issue.record("拿不到当前生效语言，无法验证")
+            return
+        }
+        // 构造一个与当前生效语言**相反**的系统语言，此时切回跟随系统必然要重启。
+        let opposite = active.hasPrefix("zh") ? "en-US" : "zh-Hans-CN"
+        #expect(
+            LanguagePreferences.needsRestart(
+                choice: .system,
+                bundle: bundle,
+                systemLanguage: opposite
+            ),
+            "当前跑 \(active)，系统设为 \(opposite)，切回跟随系统应提示重启"
+        )
+    }
+
+    /// 跑的语言和系统偏好一致时，切回跟随系统不需要重启。
+    @Test func systemChoiceNeedsNoRestartWhenAlreadyMatching() {
+        let bundle = appBundle()
+        guard let active = LanguagePreferences.activeLanguageCode(bundle: bundle) else { return }
+        // 造一个与当前生效语言同向的系统语言。
+        let sameDirection = active.hasPrefix("zh") ? "zh-Hans-CN" : "en-US"
+        #expect(
+            !LanguagePreferences.needsRestart(
+                choice: .system,
+                bundle: bundle,
+                systemLanguage: sameDirection
+            )
+        )
+    }
+
+    /// 系统语言是我们不支持的（日语），无法判断会变成哪种，不提示比误提示好。
+    @Test func systemChoiceWithUnsupportedLanguageDoesNotWarn() {
+        let bundle = appBundle()
+        #expect(
+            !LanguagePreferences.needsRestart(
+                choice: .system,
+                bundle: bundle,
+                systemLanguage: "ja-JP"
+            )
+        )
+    }
+
+    /// 系统语言标识要能映射到 bundle 实际提供的那种（带地区后缀也要认）。
+    @Test func matchingLocalizationNormalizesRegions() {
+        let bundle = appBundle()
+        // 前置条件：两份本地化都必须在，否则下面的断言没有意义。
+        #expect(bundle.localizations.contains { $0.hasPrefix("zh") })
+        #expect(bundle.localizations.contains { $0.hasPrefix("en") })
+        #expect(LanguagePreferences.matchingLocalization(for: "zh-Hans-CN", in: bundle)?.hasPrefix("zh") == true)
+        #expect(LanguagePreferences.matchingLocalization(for: "en-GB", in: bundle)?.hasPrefix("en") == true)
+        #expect(LanguagePreferences.matchingLocalization(for: "ja-JP", in: bundle) == nil)
     }
 
     /// 选择器每一项用**自己的语言**显示。

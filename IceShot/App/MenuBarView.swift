@@ -46,11 +46,14 @@ struct MenuBarView: View {
 
     /// 面板宽度按**当前生效**的界面语言取。
     ///
-    /// 用 `Bundle.preferredLocalizations` 而不是系统语言：用户可能在设置里
-    /// 把 IceShot 单独指定成英文，而系统是中文，那时按系统语言算宽度就会截断。
+    /// 截图按钮带文字（「全屏截图」→ "Full Screen Capture"），英文比中文长得多，
+    /// 所以英文下要给更宽的容器。用 `Bundle.main` 而不是系统语言：
+    /// 用户可能把 IceShot 单独指定成英文而系统是中文，那时按系统语言算宽度就会截断。
+    ///
+    /// 底部工具行改成纯图标后不再影响宽度，两个值只服务截图区与历史/贴图行。
     private static var panelWidth: CGFloat {
         let isEnglish = Bundle.main.preferredLocalizations.first?.hasPrefix("en") ?? false
-        return isEnglish ? 380 : 320
+        return isEnglish ? 360 : 320
     }
 
     private var header: some View {
@@ -351,49 +354,66 @@ struct MenuBarView: View {
         .help("管理屏幕上的贴图")
     }
 
+    /// 面板底部工具行：设置 · 获取新版本 ……… 退出。
+    ///
+    /// 三个都是面板级次要动作，不属于截图区，所以不跟上面的 `.bordered` 按钮同一套外观：
+    /// 这里用无边框**图标**按钮，靠「左侧放工具、右侧放退出」的位置关系表达分组，
+    /// 既不用分隔线，也不用换行。
+    ///
+    /// 不写文字是刻意的：英文文案比中文长得多（「获取新版本…」→ Get New Version…），
+    /// 带文字的版本在窄面板里必然被椭掉。名字放进 tooltip 与无障碍标签，
+    /// 这也是 macOS 菜单栏面板的惯例做法。
+    ///
+    /// 退出锚在最右：左边内容再长也压不到它，不会随语言漂移。
     private var footer: some View {
-        // 英文文案比中文长很多（「获取新版本…」→ "Get New Version…"），
-        // 三个按钮挤一行时最后那个会被椭成「...」。所以改成两行：
-        // 上行放「设置 / 更新」（可换行、不会被裁），下行单独放「退出」，
-        // 每个按钮都 `fixedSize` 不参与压缩——宁可换行，不要省略号。
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 12) {
-                Button {
-                    openSettingsWindow()
-                } label: {
-                    Label("设置…", systemImage: "gearshape")
-                        .lineLimit(1)
-                        .fixedSize()
-                }
-                .buttonStyle(.borderless)
-                .help("打开设置（⌘,）")
-
-                Button {
-                    closeMenuBarPanel()
-                    NSWorkspace.shared.open(ProjectLinks.latestRelease)
-                } label: {
-                    Label("获取新版本…", systemImage: "arrow.up.right.square")
-                        .lineLimit(1)
-                        .fixedSize()
-                }
-                .buttonStyle(.borderless)
-                .help("在浏览器里打开最新版本的发布页（IceShot 自身不联网）")
-
-                Spacer(minLength: 0)
+        HStack(spacing: 2) {
+            footerButton(
+                title: "设置…",
+                symbol: "gearshape",
+                help: "打开设置（⌘,）"
+            ) {
+                openSettingsWindow()
             }
 
-            Button {
+            footerButton(
+                title: "获取新版本…",
+                symbol: "arrow.up.right.square",
+                help: "在浏览器里打开最新版本的发布页（IceShot 自身不联网）"
+            ) {
+                closeMenuBarPanel()
+                NSWorkspace.shared.open(ProjectLinks.latestRelease)
+            }
+
+            Spacer(minLength: 8)
+
+            footerButton(
+                title: "退出 IceShot",
+                symbol: "power",
+                help: "退出 IceShot"
+            ) {
                 NSApplication.shared.terminate(nil)
-            } label: {
-                Label("退出 IceShot", systemImage: "power")
-                    .lineLimit(1)
-                    .fixedSize()
             }
-            .buttonStyle(.borderless)
-            .help("退出 IceShot")
         }
-        .font(.callout)
-        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// 底部工具行的一个图标按钮：文字只进无障碍标签与 tooltip，不占布局。
+    private func footerButton(
+        title: LocalizedStringKey,
+        symbol: String,
+        help: LocalizedStringKey,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: symbol)
+                // 只显示图标；标题仍会进无障碍树。
+                .labelStyle(.iconOnly)
+                .font(.system(size: 15))
+                .frame(width: 30, height: 26)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.borderless)
+        .help(help)
+        .accessibilityLabel(title)
     }
 
     // MARK: - 动作

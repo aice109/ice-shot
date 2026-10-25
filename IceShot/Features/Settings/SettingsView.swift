@@ -162,14 +162,15 @@ struct SettingsView: View {
 
         if languageNeedsRestart {
             HStack {
-                Text("切换到「\(languageChoice.displayName)」需要重启 IceShot 才会生效。")
+                Text("界面语言将变为「\(languageChoice.displayName)」，需要重启 IceShot 才会生效。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                Spacer()
+                Spacer(minLength: 8)
                 Button("立即重启") {
                     AppRelauncher.relaunch()
                 }
+                .keyboardShortcut(.defaultAction)
             }
         } else {
             Text("跟随系统时会使用 macOS「语言与地区」里的设置；也可在「系统设置 > 通用 > 语言与地区 > 应用程序」里单独指定 IceShot 的语言。")

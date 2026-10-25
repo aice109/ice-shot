@@ -85,20 +85,62 @@ enum LanguagePreferences {
         bundle.preferredLocalizations.first
     }
 
+    /// 系统偏好（用户没给本应用单独指定语言时）会解析出哪种语言。
+    ///
+    /// 用 `Locale.preferredLanguages` 而不是 `Bundle.main`：
+    /// `Bundle.main.preferredLocalizations` 反映的是**本进程启动时**的解析结果，
+    /// 而这里要问的是「如果现在重启、把决定权交还系统，会变成什么」。
+    static func systemPreferredLanguageCode() -> String? {
+        Locale.preferredLanguages.first
+    }
+
     /// 当前偏好生效后，界面语言是否与之一致。不一致说明需要重启。
+    ///
+    /// 三个分支都要能判出「不一致」——尤其是 `.system`：
+    /// 用户从「English」切回「跟随系统」时，若系统是中文，
+    /// 不重启就仍然是英文界面。早期版本这里直接 `return false`，
+    /// 导致切回跟随系统后毫无反应也没提示。
     static func needsRestart(
         choice: Choice,
-        bundle: Bundle = .main
+        bundle: Bundle = .main,
+        systemLanguage: String? = systemPreferredLanguageCode()
     ) -> Bool {
         guard let active = activeLanguageCode(bundle: bundle) else { return false }
+
         switch choice {
         case .system:
-            // 跟随系统时无从判断用户期望什么，不提示重启。
-            return false
+            // 交还系统后应该跑哪种语言：系统偏好里本应用能提供的第一个。
+            guard let systemLanguage,
+                  let expected = matchingLocalization(for: systemLanguage, in: bundle)
+            else {
+                // 系统偏好信息拿不到：无法判断，不提示比误提示好。
+                return false
+            }
+            return !active.hasPrefix(expected)
         case .simplifiedChinese:
             return !active.hasPrefix("zh")
         case .english:
             return !active.hasPrefix("en")
         }
+    }
+
+    /// 把系统语言标识（如 `zh-Hans-CN`）映射到本 bundle 实际提供的那一种（如 `zh-Hans`）。
+    ///
+    /// 手写前缀匹配而不是用 `Bundle.preferredLocalizations(from:forPreferences:)`：
+    /// 前者对不支持的语种返回 `nil`（可以被调用方当成「无法判断」），
+    /// 而后者会给一个默认值，反而会把「系统是日语、我们只有中英」
+    /// 误判成需要重启。
+    static func matchingLocalization(
+        for languageCode: String,
+        in bundle: Bundle = .main
+    ) -> String? {
+        let available = bundle.localizations
+        if languageCode.hasPrefix("zh") {
+            return available.first { $0.hasPrefix("zh") }
+        }
+        if languageCode.hasPrefix("en") {
+            return available.first { $0.hasPrefix("en") }
+        }
+        return nil
     }
 }
