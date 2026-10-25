@@ -28,6 +28,15 @@ scheme="IceShot"
 destination="platform=macOS"
 configuration="${1:-Debug}"
 
+# 卡死取证开关：默认关闭。设成 1 时给 Swift 编译器加 `-DICESHOT_HANG_TRACE`，
+# 打开 `HangTrace` 的落盘与 watchdog，用于排查偶发卡死。
+# 只影响编译条件，**不改变**本脚本的判据（构建 / 测试 / 零警告）。
+swift_flags=()
+if [ "${ICESHOT_HANG_TRACE:-0}" = "1" ]; then
+  swift_flags+=("SWIFT_ACTIVE_COMPILATION_CONDITIONS=DEBUG ICESHOT_HANG_TRACE")
+fi
+
+
 case "$configuration" in
   Debug | Release) ;;
   *)
@@ -60,6 +69,7 @@ mkdir -p "$log_dir"
 echo "▸ 构建 ${configuration}（独立 DerivedData：${derived_data#"$repo_root"/}）"
 xcodebuild -project "$project" -scheme "$scheme" -configuration "$configuration" \
   -destination "$destination" -derivedDataPath "$derived_data" \
+  ${swift_flags[@]+"${swift_flags[@]}"} \
   build >"$build_log" 2>&1
 build_status=$?
 
@@ -73,6 +83,7 @@ if [ "$configuration" = "Debug" ]; then
   echo "▸ 测试"
   xcodebuild -project "$project" -scheme "$scheme" -configuration "$configuration" \
     -destination "$destination" -derivedDataPath "$derived_data" \
+    ${swift_flags[@]+"${swift_flags[@]}"} \
     test >"$test_log" 2>&1
   test_status=$?
   ran_tests=1

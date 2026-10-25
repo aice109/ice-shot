@@ -344,3 +344,14 @@ Screenshots are saved to history automatically.";
 "截图默认只在本机处理，不会上传。历史记录保存在本机，可在「历史记录」页关闭。" = "Screenshots are processed locally and never uploaded. History is stored on this Mac and can be turned off in the History tab.";
 "启动" = "Startup";
 "快捷键" = "Shortcuts";
+
+/* ---- 卡死取证 ---- */
+"导出卡死日志…" = "Export Hang Diagnostics…";
+"导出卡死日志" = "Export Hang Diagnostics";
+"把诊断文件保存到你选择的文件夹，用于排查卡死（不含截图内容）" = "Save diagnostic files to a folder you choose, for investigating hangs. Contains no screenshot content.";
+"选择一个文件夹用于保存诊断文件" = "Choose a folder to save the diagnostic files";
+"导出" = "Export";
+"没有可导出的诊断文件" = "No diagnostic files to export";
+"先复现一次卡死，或直接用屏幕截图工具把现象拍下来。" = "Reproduce the hang once first, or capture the symptom with a screenshot tool.";
+"已导出诊断文件" = "Diagnostics exported";
+"导出失败" = "Export failed";
