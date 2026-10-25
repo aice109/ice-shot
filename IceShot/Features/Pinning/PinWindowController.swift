@@ -4,8 +4,10 @@ import AppKit
 ///
 /// 设计取舍：
 /// - 用 `NSPanel` 而不是 `NSWindow`：面板不参与激活策略判定，贴图出现不会让 Dock 图标跳出来；
-/// - 面板不抢键盘焦点（`canBecomeKey = false`），所有交互都在 `PinImageView` 里用 AppKit 完成
-///   （原生窗口拖动 + 原生视图缩放），内容不经过 SwiftUI，快速拖动不会滞后或残影；
+/// - **面板可以成为 key，但不激活 App、不抢键盘焦点**（`.nonactivatingPanel`）。
+///   光标提示必须这样：非 key 窗口收不到任何跟踪事件（实测）；
+/// - 所有交互都在 `PinImageView` 里用 AppKit 完成（原生窗口拖动 + 自跟踪缩放），
+///   内容不经过 SwiftUI，快速拖动不滞后、不残影；
 /// - 关闭与「恢复交互」保留在菜单栏，穿透状态下也不会出现关不掉的窗口。
 @MainActor
 final class PinWindowController: NSWindowController, NSWindowDelegate, Identifiable {
@@ -17,6 +19,9 @@ final class PinWindowController: NSWindowController, NSWindowDelegate, Identifia
     let image: CGImage
     private(set) var isClickThrough = false
     private(set) var opacity: Double = 1
+    private var dragAnchorFrame: CGRect?
+    /// 拖拽中的光标栈（保证 push / pop 成对）。
+    private let draggingCursor = PointerCursorStack()
     /// 窗口关闭时回调（由 `PinBoard` 清理注册表）。
     var onClose: (() -> Void)?
 
@@ -48,11 +53,10 @@ final class PinWindowController: NSWindowController, NSWindowDelegate, Identifia
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
         panel.isMovableByWindowBackground = false
-        panel.becomesKeyOnlyIfNeeded = true
-        // 注：`acceptsMouseMovedEvents` 只在窗口成为 key 时才有效，贴图面板常驻非 key，
-        // 所以光标提示**不能**依赖 `mouseMoved`——改用 `NSTrackingArea` 的
-        // `.cursorUpdate`（由窗口服务器驱动，不需要激活或 key 状态），见 `PinImageView`。
-        // 保留这一项是为了在用户点进来（成为 key）时事件也完整。
+        panel.becomesKeyOnlyIfNeeded = false
+        // `acceptsMouseMovedEvents` 只在窗口成为 key 时才有效。
+        // 点过其他 App 再回到贴图时，面板可能已经不是 key 了，
+        // 所以 `PinImageView.mouseEntered` 里会主动 `makeKey()` 抢回来。
         panel.acceptsMouseMovedEvents = true
         panel.contentMinSize = NSSize(
             width: PinGeometry.minimumSize,
@@ -68,6 +72,9 @@ final class PinWindowController: NSWindowController, NSWindowDelegate, Identifia
         content.autoresizingMask = [.width, .height]
         panel.contentView = content
         panel.setFrame(panel.frame, display: false)
+        // 贴图面板必须**先登记为窗口，再显示**：`show(at:)` 里 `makeKeyAndOrderFront`
+        // 之前若窗口还挂着未完成的首帧布局，AppKit 会在窗口服务器等待中重入布局。
+        panel.contentView?.layoutSubtreeIfNeeded()
     }
 
     required init?(coder: NSCoder) {
@@ -77,6 +84,22 @@ final class PinWindowController: NSWindowController, NSWindowDelegate, Identifia
     func windowWillClose(_ notification: Notification) {
         onClose?()
         onClose = nil
+    }
+
+    // MARK: - key 状态与光标恢复
+
+    /// 指针进入贴图时让它重新成为 key。
+    ///
+    /// 为什么必需：`cursorUpdate` / `mouseMoved` 这些跟踪事件**只在 key 窗口上派发**。
+    /// 用户点一下别的 App 再回到贴图时，面板已经不是 key 了，于是光标永远停在
+    /// 「离开时那个箭头」上——明明悬停在四角却是箭头，四边也不变成抓手。
+    ///
+    /// `makeKey()` 在 `.nonactivatingPanel` 下只把本窗口设为 key，
+    /// **不会激活 App、不会切走用户当前的应用**，也不会抢键盘焦点。
+    func ensureKeyForPointerTracking() {
+        guard let panel = window else { return }
+        guard !panel.isKeyWindow else { return }
+        panel.makeKey()
     }
 
     // MARK: - 展示
@@ -110,20 +133,47 @@ final class PinWindowController: NSWindowController, NSWindowDelegate, Identifia
         image.height > 0 ? CGFloat(image.width) / CGFloat(image.height) : 1
     }
 
-    /// 拖边 / 拖角缩放：保持图片比例，固定对面那条边，最小 40 pt。
-    func resize(
-        from baseFrame: CGRect,
-        edge: PinGeometry.ResizeEdge,
-        translation: CGSize
-    ) {
+    /// 缩放中直接按「目标高度」设 frame。
+    ///
+    /// 不含任何「基准 frame + 位移」的中间量：每次 `mouseDragged` 都把指针的
+    /// 绝对位置折算成目标高度传进来，所以指针离开贴图、事件合帧、
+    /// 跨屏换 scale 都不会产生累计偏差。
+    /// 固定边取自缩放开始时记住的 `dragAnchorFrame`——不是每帧的 `window.frame`，
+    /// 因为窗口自己的 origin 在缩放中一直在变。
+    func resize(toHeight height: CGFloat, anchor: PinGeometry.ResizeEdge) {
         guard let panel = window else { return }
-        let frame = PinGeometry.resizedFrame(
-            baseFrame: baseFrame,
-            edge: edge,
-            translation: translation,
-            imageAspect: imageAspect
+        let base = dragAnchorFrame ?? panel.frame
+        let frame = PinGeometry.frameSizedToHeight(
+            baseFrame: base,
+            height: height,
+            imageAspect: imageAspect,
+            anchor: anchor
         )
-        panel.setFrame(frame, display: true)
+        // frame 没变就不要打扰窗口服务器：拖拽高频事件里大多数帧是重复的。
+        guard frame != panel.frame else { return }
+        // `display: false`：内容由图层自己铺满，不需要每次同步重绘。
+        panel.setFrame(frame, display: false)
+    }
+
+    /// 记录缩放开始时的 frame。
+    func beginResize() {
+        dragAnchorFrame = window?.frame
+    }
+
+    func endResize() {
+        dragAnchorFrame = nil
+    }
+
+    // MARK: - 拖拽光标
+
+    /// 按下时把「抓紧」压栈，保证拖拽全程不被 `cursorUpdate` 覆盖。
+    func setDraggingCursor(_ cursor: PointerCursor) {
+        draggingCursor.push(cursor)
+    }
+
+    /// 松手时出栈（成对，重复调用无副作用）。
+    func releaseDraggingCursor() {
+        draggingCursor.pop()
     }
 
     /// 双击恢复 100% 透明度与原始显示尺寸。
