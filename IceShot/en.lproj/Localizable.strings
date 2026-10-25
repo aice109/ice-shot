@@ -336,3 +336,11 @@ Screenshots are saved to history automatically.";
 "帧" = "frames";
 "先点一下要截的窗口，再在里面向下滚动；完成后点「完成」" = "Click the window to capture, then scroll inside it; click Done when finished";
 "退出" = "Quit";
+
+/* ---- 设置分页 ---- */
+"截图与标注" = "Capture & Markup";
+"隐私" = "Privacy";
+"区域 / 窗口 / 全屏可从菜单栏或菜单「截图」启动；全屏使用光标所在显示器。" = "Start region, window, or full-screen captures from the menu bar or the Capture menu; full screen uses the display under the pointer.";
+"截图默认只在本机处理，不会上传。历史记录保存在本机，可在「历史记录」页关闭。" = "Screenshots are processed locally and never uploaded. History is stored on this Mac and can be turned off in the History tab.";
+"启动" = "Startup";
+"快捷键" = "Shortcuts";

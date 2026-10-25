@@ -26,6 +26,59 @@ struct SettingsView: View {
     }
 
     var body: some View {
+        // 分页而不是竖向平铺：设置项原本是 6 组平铺，纵向远超一屏，
+        // 用户必须一路滚动才能找到「快捷键」或「关于」。
+        // macOS 的系统设置本身就用分页，这也是 Mac 用户最熟悉的形式。
+        TabView {
+            generalTab
+                .tabItem { Label("通用", systemImage: "gearshape") }
+            captureTab
+                .tabItem { Label("截图与标注", systemImage: "camera.viewfinder") }
+            hotkeyTab
+                .tabItem { Label("快捷键", systemImage: "command") }
+            historyTab
+                .tabItem { Label("历史记录", systemImage: "photo.stack") }
+            aboutTab
+                .tabItem { Label("关于", systemImage: "info.circle") }
+        }
+        // 560 宽：给快捷键行（名称 + 组合 + 两个按钮）留够横向空间。
+        // 620 高：最高的「截图与标注」页（含 8 行色板）接近放得下，
+        // 再多就要滚，但那一页的内容本身就没有定长（色板可增删到 2–8 色）。
+        .frame(width: 560, height: 620)
+        // 让 `SettingsWindowPresenter` 拿到窗口：激活被系统拒绝时它要能兜底置前。
+        .background(SettingsWindowAnchor())
+        .onAppear {
+            // 用户可能在系统设置里改过登录项，打开设置页时先对一次真实状态。
+            launchAtLogin.refresh()
+            // 语言同理：系统设置里能单 App 指定语言，打开时以磁盘上的真实值为准。
+            languageChoice = LanguagePreferences.currentChoice()
+        }
+        .onChange(of: languageChoice) { _, newValue in
+            // macOS 在进程启动时解析 .lproj，所以这里只落盘，不期望界面立刻变。
+            // 是否变生效由 `languageNeedsRestart` 算出来，不一致就给重启按钮。
+            LanguagePreferences.apply(newValue)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            // 从「系统设置 > 登录项」切回来时，开关要跟着系统的真实状态走。
+            launchAtLogin.refresh()
+        }
+        .onDisappear {
+            // 设置窗口关闭时结束录制，避免本地监听泄漏。
+            recorder.cancel()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in
+            // 切到其它 App 后本地监听收不到按键；结束录制，让全局热键立即恢复。
+            recorder.cancel()
+        }
+    }
+
+    // MARK: - 分页
+
+    /// 「通用」页：界面语言、开机自启动、屏幕录制权限。
+    ///
+    /// 权限放这里而不是单开一页：它只在「还不能截图」时需要处理，
+    /// 和语言 / 登录项一样属于「应用整体状态」，凑一页正好一屏。
+    private var generalTab: some View {
         Form {
             generalSection
 
@@ -53,14 +106,16 @@ struct SettingsView: View {
                 Text("授权只在下次启动时生效：在系统设置中打开 IceShot 的开关后，点「重启 IceShot」。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+        }
+        .formStyle(.grouped)
+    }
 
+    /// 「截图与标注」页：截图行为、标注色板。
+    private var captureTab: some View {
+        Form {
             Section("截图") {
-                Text("区域 / 窗口 / 全屏截图可从菜单栏或菜单「截图」启动。")
-                    .foregroundStyle(.secondary)
-                Text("全屏截图使用光标所在显示器；全部显示器会逐屏截取，可保存多张 PNG。")
-                    .foregroundStyle(.secondary)
-
                 Picker("延时截图", selection: $countdownSeconds) {
                     ForEach(CapturePreferences.countdownOptions, id: \.self) { seconds in
                         Text("\(seconds) 秒").tag(seconds)
@@ -69,29 +124,59 @@ struct SettingsView: View {
                 Text("菜单「截图 > 延时截图」倒计时结束后开始区域截图；倒计时期间可取消。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("区域 / 窗口 / 全屏可从菜单栏或菜单「截图」启动；全屏使用光标所在显示器。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             PaletteEditor()
+        }
+        .formStyle(.grouped)
+    }
 
+    /// 「快捷键」页：单独一页放。
+    ///
+    /// 五个快捷键每个都带「当前组合 + 录制 + 重置」，一组就近 300pt；
+    /// 跟截图、色板挤在同一页会滚动超过一屏，拆开各自都能一眼看全。
+    private var hotkeyTab: some View {
+        Form {
+            hotkeySection
+        }
+        .formStyle(.grouped)
+    }
+
+    /// 「历史记录」页：开关、容量说明、打开历史窗口。
+    private var historyTab: some View {
+        Form {
             Section("历史记录") {
                 Toggle("自动保存截图到历史", isOn: $historyEnabled)
                 Text("本机保存最近 30 天 / 500 张 / 2 GB；收藏不会被自动清理。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
                 Toggle("保存后自动识别文字", isOn: $autoRecognize)
                     .disabled(!historyEnabled)
                 Text("用系统 Vision 在本机识别，便于搜索；不联网、不上传。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
                 Button("打开历史记录") {
                     openWindow(id: "library")
                     NSApplication.shared.activate()
                 }
                 .disabled(library == nil)
             }
+        }
+        .formStyle(.grouped)
+    }
 
-            hotkeySection
-
+    /// 「关于」页：版本、通道、仓库与发布页入口、隐私说明。
+    private var aboutTab: some View {
+        Form {
             Section("关于") {
                 // 版本号只读 Bundle，不能在界面里写死；打包脚本可覆盖 MARKETING_VERSION。
                 LabeledContent(String(localized: "版本"), value: AppVersion.displayText)
@@ -113,37 +198,16 @@ struct SettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                Text("截图默认只在本机处理，不上传。")
+            }
+
+            Section("隐私") {
+                Text("截图默认只在本机处理，不会上传。历史记录保存在本机，可在「历史记录」页关闭。")
+                    .font(.caption)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .formStyle(.grouped)
-        .frame(width: 480, height: 640)
-        // 让 `SettingsWindowPresenter` 拿到窗口：激活被系统拒绝时它要能兜底置前。
-        .background(SettingsWindowAnchor())
-        .onAppear {
-            // 用户可能在系统设置里改过登录项，打开设置页时先对一次真实状态。
-            launchAtLogin.refresh()
-            // 语言同理：系统设置里能单 App 指定语言，打开时以磁盘上的真实值为准。
-            languageChoice = LanguagePreferences.currentChoice()
-        }
-        .onChange(of: languageChoice) { _, newValue in
-            // macOS 在进程启动时解析 .lproj，所以这里只落盘，不期望界面立刻变。
-            // 是否变生效由 `languageNeedsRestart` 算出来，不一致就给重启按钮。
-            LanguagePreferences.apply(newValue)
-        }
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            // 从「系统设置 > 登录项」切回来时，开关要跟着系统的真实状态走。
-            launchAtLogin.refresh()
-        }
-        .onDisappear {
-            // 设置窗口关闭时结束录制，避免本地监听泄漏。
-            recorder.cancel()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in
-            // 切到其它 App 后本地监听收不到按键；结束录制，让全局热键立即恢复。
-            recorder.cancel()
-        }
     }
 
     // MARK: - 通用
@@ -180,11 +244,17 @@ struct SettingsView: View {
         }
     }
 
-    /// 开机自启动：开关值来自系统登录项状态，开启 / 关闭失败会回滚并给出原因。
+    /// 「通用」页的两组：界面语言、开机自启动。
+    ///
+    /// 不合成一个 `Section("通用")`：那个标题会和 tab 名重复，
+    /// 而这两个开关本来就属于不同的事情（改界面 vs 改启动行为）。
+    @ViewBuilder
     private var generalSection: some View {
-        Section("通用") {
+        Section("界面语言") {
             languagePicker
+        }
 
+        Section("启动") {
             Toggle(
                 String(localized: "开机时自动启动"),
                 isOn: Binding(
