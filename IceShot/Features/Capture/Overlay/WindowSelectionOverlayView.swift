@@ -76,7 +76,10 @@ struct WindowSelectionOverlayView: View {
             .focused($isFocused)
             .onAppear {
                 isFocused = true
-                if frame.display.appKitFrame.contains(NSEvent.mouseLocation) {
+                if OverlayCoordinates.containsInclusive(
+                    frame.display.appKitFrame,
+                    NSEvent.mouseLocation
+                ) {
                     updateHover(at: currentMouseLocalPoint())
                 }
             }

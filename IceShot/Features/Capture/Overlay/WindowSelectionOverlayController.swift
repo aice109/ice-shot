@@ -100,7 +100,10 @@ final class WindowSelectionOverlayController: WindowSelectionOverlayPresenting {
         }
 
         let cursor = NSEvent.mouseLocation
-        if let keyPanel = panels.first(where: { $0.frame.contains(cursor) }) {
+        // 边界点也算在这块屏上（`CGRect.contains` 是半开区间）。
+        if let keyPanel = panels.first(where: {
+            OverlayCoordinates.containsInclusive($0.frame, cursor)
+        }) {
             keyPanel.makeKey()
         } else {
             panels.first?.makeKey()

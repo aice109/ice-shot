@@ -77,6 +77,34 @@ final class SelectionOverlayState {
     }
 
     func setSpacePressed(_ pressed: Bool) {
+        // 值不变就不赋值。
+        //
+        // `isSpacePressed` 是 `@Observable` 属性，无条件赋值会通知所有观察者，
+        // 整块浮层重建一遍；长按 Space 时 keyDown 会反复派发，于是重建风暴。
+        // 重建本身不该发声，但它会反复取消/恢复焦点与点击区，很容易连带着
+        // 触发系统提示音。这里按值去重，从源头上少掉这堆无效通知。
+        guard isSpacePressed != pressed else { return }
         isSpacePressed = pressed
+    }
+
+    // MARK: - 指针位置
+
+    /// 指针在各显示器局部坐标里的最新位置（左上原点）。
+    ///
+    /// 由面板级鼠标移动监视器写入，**不依赖 SwiftUI 的 hover 回调**——
+    /// 后者的追踪区只跟着具体子视图走，指针停在手柄 / 工具条上时父层收不到事件，
+    /// 光标就会卡住不跟手。视图直接观察这个值重算光标。
+    private(set) var pointerByDisplay: [CGDirectDisplayID: CGPoint] = [:]
+
+    func updatePointer(_ point: CGPoint?, displayID: CGDirectDisplayID) {
+        if let point {
+            pointerByDisplay[displayID] = point
+        } else if pointerByDisplay[displayID] != nil {
+            pointerByDisplay.removeValue(forKey: displayID)
+        }
+    }
+
+    func pointer(for displayID: CGDirectDisplayID) -> CGPoint? {
+        pointerByDisplay[displayID]
     }
 }

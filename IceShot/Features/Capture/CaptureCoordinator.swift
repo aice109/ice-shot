@@ -350,7 +350,7 @@ final class CaptureCoordinator {
             }
             let images = frames.map(\.image)
             let currentIndex = frames.firstIndex {
-                $0.display.appKitFrame.contains(NSEvent.mouseLocation)
+                OverlayCoordinates.containsInclusive($0.display.appKitFrame, NSEvent.mouseLocation)
             } ?? 0
             let current = frames[currentIndex]
             pendingAllDisplays = (images: images, index: currentIndex)
@@ -855,7 +855,9 @@ final class CaptureCoordinator {
 
     private func currentDisplay(from displays: [DisplayDescriptor]) -> DisplayDescriptor? {
         let cursor = NSEvent.mouseLocation
-        return displays.first { $0.appKitFrame.contains(cursor) } ?? displays.first
+        return displays.first {
+            OverlayCoordinates.containsInclusive($0.appKitFrame, cursor)
+        } ?? displays.first
     }
 
     private func message(for error: Error) -> String {
