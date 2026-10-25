@@ -27,6 +27,11 @@ struct MenuBarView: View {
                 Divider()
                 pinsSection(pins)
             }
+            // 只有开着取证开关、且确实写过诊断文件时才出现，平时不占版面。
+            if HangTrace.isEnabled, HangTrace.hasDiagnostics {
+                Divider()
+                diagnosticsSection
+            }
             Divider()
             footer
         }
@@ -50,6 +55,11 @@ struct MenuBarView: View {
     /// 「获取新版本…」→ "Get New Version…"），英文比中文长得多，要给更宽的容器。
     /// 用 `Bundle.main` 而不是系统语言：用户可能把 IceShot 单独指定成英文而系统是中文，
     /// 那时按系统语言算宽度就会截断。
+    /// 列表行的统一内边距：`Menu` 与 `Button` 的标签都没有默认内边距，
+    /// 两处共用同一组值才不会一高一矮。
+    private static let rowHorizontalPadding: CGFloat = 10
+    private static let rowVerticalPadding: CGFloat = 5
+
     private static var panelWidth: CGFloat {
         let isEnglish = Bundle.main.preferredLocalizations.first?.hasPrefix("en") ?? false
         return isEnglish ? 380 : 320
@@ -314,7 +324,12 @@ struct MenuBarView: View {
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
             }
-            .frame(maxWidth: .infinity)
+            // 与 `pinsSection` 用同一套内边距 / 高度：两者上下相邻，
+            // 任何一侧多出几 pt 都会让整列看起来错位。
+            .padding(.horizontal, Self.rowHorizontalPadding)
+            .padding(.vertical, Self.rowVerticalPadding)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.bordered)
         .disabled(library == nil)
@@ -347,10 +362,84 @@ struct MenuBarView: View {
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
             }
-            .frame(maxWidth: .infinity)
+            // 与「历史记录」逐像素对齐：同样的内边距与最小高度。
+            //
+            // 之前这里只有 `.frame(maxWidth: .infinity)`：`Menu` 的标签不像 `Button`
+            // 那样自带内边距与最小高度，于是它比上下的按钮矮一截、文字贴边，
+            // 一有贴图整块面板的节奏就乱了。
+            .padding(.horizontal, Self.rowHorizontalPadding)
+            .padding(.vertical, Self.rowVerticalPadding)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
         }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .buttonStyle(.bordered)
         .disabled(pins.isEmpty)
         .help("管理屏幕上的贴图")
+    }
+
+    /// 卡死取证文件的导出入口。
+    ///
+    /// 只在本机确实写过诊断文件时出现（`HangTrace.hasDiagnostics`），平时不占版面。
+    /// 之所以必须有这个按钮：沙盒 App 的诊断文件落在容器里，而容器受 macOS 隐私保护，
+    /// 用户在自己的终端里 `ls` 只会得到 `Operation not permitted`。
+    /// 让用户亲手选一个目录导出，是唯一不需要任何系统权限、也不需要敲命令的取回方式。
+    private var diagnosticsSection: some View {
+        Button {
+            exportDiagnostics()
+        } label: {
+            Label("导出卡死日志…", systemImage: "stethoscope")
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .buttonStyle(.borderless)
+        .help("把诊断文件保存到你选择的文件夹，用于排查卡死（不含截图内容）")
+    }
+
+    /// 让用户选目录，再把诊断文件拷过去。
+    private func exportDiagnostics() {
+        closeMenuBarPanel()
+
+        let panel = NSOpenPanel()
+        panel.title = String(localized: "导出卡死日志")
+        panel.message = String(localized: "选择一个文件夹用于保存诊断文件")
+        panel.prompt = String(localized: "导出")
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false
+
+        guard panel.runModal() == .OK, let directory = panel.url else { return }
+
+        do {
+            let written = try HangTrace.export(to: directory)
+            guard !written.isEmpty else {
+                presentDiagnosticsAlert(
+                    message: String(localized: "没有可导出的诊断文件"),
+                    detail: String(localized: "先复现一次卡死，或直接用屏幕截图工具把现象拍下来。")
+                )
+                return
+            }
+            presentDiagnosticsAlert(
+                message: String(localized: "已导出诊断文件"),
+                detail: "已保存到：\(directory.path)\n\n" + written.joined(separator: "\n")
+            )
+        } catch {
+            presentDiagnosticsAlert(
+                message: String(localized: "导出失败"),
+                detail: (error as? LocalizedError)?.errorDescription
+                    ?? "错误码 \((error as NSError).code)"
+            )
+        }
+    }
+
+    private func presentDiagnosticsAlert(message: String, detail: String) {
+        let alert = NSAlert()
+        alert.alertStyle = .informational
+        alert.messageText = message
+        alert.informativeText = detail
+        alert.addButton(withTitle: "好")
+        alert.runModal()
     }
 
     /// 面板底部：设置 / 获取新版本 / 退出，一行三个文字按钮。
