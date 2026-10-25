@@ -25,7 +25,6 @@ final class SelectionOverlayController: SelectionOverlayPresenting {
     /// 松手后是否进入就地标注；长截图走 false（选区即抓取范围，直接开始采集）。
     private var autoEditOnSelection = true
     private var onCancel: (() -> Void)?
-    private var isFinishing = false
     /// 同一个 Esc 只处理一次：多层入口（监听 / SwiftUI / 窗口）都会调 `handleEscape()`。
     private var escapeGate = EscapeGate()
     private var session: Session?
@@ -45,7 +44,11 @@ final class SelectionOverlayController: SelectionOverlayPresenting {
         onFinish: @escaping (SelectionFinish) -> Void,
         onCancel: @escaping () -> Void
     ) {
-        dismiss()
+        // 先把上一次会话彻底清干净，再在**干净状态**上装配新会话。
+        // 以前 `present` 顺带负责复位「正在收尾」标志位，一旦某次收尾没走到复位，
+        // 标志位就永远立着、`finish` 从此只做空跑——这次直接不再需要那个标志位：
+        // 收尾是否可能重入由「会话是否还在」本身表达（见 `finish`）。
+        teardownOverlay()
         self.onFinish = onFinish
         self.onCancel = onCancel
         self.autoEditOnSelection = autoEditOnSelection
@@ -163,10 +166,22 @@ final class SelectionOverlayController: SelectionOverlayPresenting {
     }
 
     func dismiss() {
+        teardownOverlay()
+        NSColorPanel.shared.close()
+        NSColorPanel.shared.level = .floating
+    }
+
+    /// 移除浮层并把所有会话状态复位到「没有进行中的截图」。
+    ///
+    /// `present` 与 `dismiss` 共用这一份实现，确保不会出现「标志位复位了但面板还在」
+    /// 或「面板没了但标志位还立着」的半截状态。
+    private func teardownOverlay() {
         for panel in panels {
             panel.allowsClose = true
             panel.stopPointerTracking()
             panel.onPointerMoved = nil
+            panel.onCancelOperation = nil
+            panel.onTextPickingEscape = nil
             panel.orderOut(nil)
             panel.close()
             panel.contentView = nil
@@ -184,11 +199,8 @@ final class SelectionOverlayController: SelectionOverlayPresenting {
         onCancel = nil
         onWindowPick = nil
         windows.removeAll()
-        isFinishing = false
         escapeGate = EscapeGate()
         session = nil
-        NSColorPanel.shared.close()
-        NSColorPanel.shared.level = .floating
     }
 
     // MARK: - 进入编辑
@@ -421,41 +433,76 @@ final class SelectionOverlayController: SelectionOverlayPresenting {
 
     // MARK: - 收尾
 
+    /// 收尾。
+    ///
+    /// **整个收尾必须跳出 SwiftUI 的事件派发栈。**
+    ///
+    /// 调用链是：`Button` action → `MarkupToolbar` → `SelectionOverlayView` → 这里。
+    /// 在这条栈上做任何「改动视图树」的事——拆浮层面板、回调外部改 `@Observable`
+    /// 的 `state`、创建新窗口——都会让 AppKit 与 SwiftUI 在「视图树正在变更」的
+    /// 过程中互相重入。真机症状就是点「关闭」/「贴图」后主线程彻底卡死，
+    /// 崩溃报告的栈停在 `CaptureCoordinator.handleFinish`。
+    ///
+    /// 因此这里只做**纯数据提取**（裁图、渲染），把真正的作用放到下一个 runloop。
     private func finish(_ action: MarkupAction) {
         EscapeTrace.log("finish", "\(action)")
-        guard !isFinishing,
-              let session,
+        let finishStarted = ProcessInfo.processInfo.systemUptime
+        HangTrace.mark("finish.begin", "\(action)")
+        defer { HangTrace.markDuration("finish.end", from: finishStarted) }
+        guard let session,
               let overlayState,
               let rect = validSelection(overlayState) else {
+            // 没有可收尾的选区（已被 `cancel()` 或上一次 `finish` 清掉）：
+            // 用户点了关闭就得真的关掉。以前这里直接 `return`，而面板又是
+            // `.screenSaver` 层级且被 `close()` 拦截，结果就是**全屏死锁**、只能强关机器。
+            // 无论如何把浮层拆掉是底线。
+            EscapeTrace.log("finish", "no-session")
+            cancel()
             return
         }
-        isFinishing = true
 
         let original = croppedImage(session, rect: rect)
+        HangTrace.mark("finish.original", original == nil ? "nil" : "ok")
         let output: CGImage?
         switch action {
         case .close:
             output = nil
         case .copy, .save, .pin:
+            // `ImageRenderer` 会按原图 1× 同步渲染整张图，是最可能长时间占住主线程的一步。
+            let renderStarted = ProcessInfo.processInfo.systemUptime
             output = outputImage(session: session, state: overlayState, rect: rect)
+            HangTrace.markDuration("finish.render", from: renderStarted)
         }
 
         let result = SelectionResult(frame: session.displayFrame, rect: rect)
         let callback = onFinish
-        dismiss()
-        // dismiss() 会复位 isFinishing；保持到下一次 present，避免重复收尾。
-        isFinishing = true
         guard let original else {
+            // 裁切失败也要把浮层拆掉，否则用户点了没反应。
+            Task { @MainActor in
+                self.dismiss()
+            }
             return
         }
-        callback?(
-            SelectionFinish(
-                result: result,
-                original: original,
-                output: output,
-                action: action
+
+        // 先拆浮层，再回调：回调会落历史、弹保存面板、甚至再开一层浮层。
+        // 只要同期还有一块 `.screenSaver` 全屏面板在，用户就没有可用的交互路径。
+        // 两步都放到下一个 runloop，彻底离开 SwiftUI 的事件派发栈。
+        Task { @MainActor in
+            let dismissStarted = ProcessInfo.processInfo.systemUptime
+            self.dismiss()
+            HangTrace.markDuration("finish.dismiss", from: dismissStarted)
+
+            HangTrace.mark("finish.callback.begin", "\(action)")
+            callback?(
+                SelectionFinish(
+                    result: result,
+                    original: original,
+                    output: output,
+                    action: action
+                )
             )
-        )
+            HangTrace.mark("finish.callback.end", "\(action)")
+        }
     }
 
     private func outputImage(
@@ -530,9 +577,14 @@ final class SelectionOverlayController: SelectionOverlayPresenting {
         return cropped
     }
 
+    /// 与 `finish` 同理：取消也必须跳出 SwiftUI 的事件派发栈。
+    ///
+    /// 这条路径由 Esc / 面板关闭触发，同样可能落在按钮或视图手势的同步栈上。
     private func cancel() {
         let callback = onCancel
-        dismiss()
-        callback?()
+        Task { @MainActor in
+            self.dismiss()
+            callback?()
+        }
     }
 }

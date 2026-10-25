@@ -17,9 +17,13 @@ final class CaptureOverlayPanel: NSPanel {
 
     /// 只有协调器真正收尾（`dismiss()`）时才允许关闭。
     ///
-    /// 取字模式下 Esc 会被 Live Text 内部消化，谁都收不到通知，但系统仍可能按面板默认
-    /// 行为把窗口关掉；与其到处猜 Esc 落到哪一层，不如直接让面板**关不掉**：
-    /// 任何 `close()` / `performClose(_:)` 都转成 Esc 语义交给控制器。
+    /// **开关的是「用户发起的关闭」（`performClose:`，Esc 与关窗手势会走到这里），
+    /// 不是 `close()` 本身。**
+    ///
+    /// 曾经这里连 `close()` 一起拦：结果 `dismiss()` 里那个用来放行的标志位
+    /// 一旦没被置位，`close()` 就无条件转成 Esc 语义，二次进入 `finish()` 时会话已清空、
+    /// 只能直接返回——于是浮层永远关不掉，`.screenSaver` 层级盖满全屏、鼠标键盘全被吃掉。
+    /// 现在：开关只管 `performClose:`，`close()` 永远放行（它只服务于 `dismiss()`）。
     var allowsClose = false
 
     /// 指针在浮层上的实时位置（视图坐标，左上原点），由系统鼠标移动事件驱动。
@@ -71,19 +75,19 @@ final class CaptureOverlayPanel: NSPanel {
     override var canBecomeMain: Bool { false }
 
     override func performClose(_ sender: Any?) {
-        EscapeTrace.log("panel.performClose")
+        HangTrace.mark("panel.performClose", "allowsClose=\(allowsClose)")
+        guard !allowsClose, onCancelOperation != nil else {
+            EscapeTrace.log("panel.performClose", "allowed")
+            super.performClose(sender)
+            return
+        }
+        EscapeTrace.log("panel.performClose", "blocked")
         requestEscape()
     }
 
-    override func close() {
-        guard !allowsClose, onCancelOperation != nil else {
-            EscapeTrace.log("panel.close", "allowed")
-            super.close()
-            return
-        }
-        EscapeTrace.log("panel.close", "blocked")
-        requestEscape()
-    }
+    // 刻意**不**重写 `close()`：它是程序化的关窗入口（控制器 `dismiss()` 用它），
+    // 拦住它只会制造「谁都无法移除这块全屏面板」的死锁，对 `performClose:` 的拦截
+    // 没有任何额外收益。
 
     /// 把「要关闭」翻译成 Esc 语义：取字模式先退取字，其余交给控制器。
     private func requestEscape() {
@@ -103,7 +107,10 @@ final class CaptureOverlayPanel: NSPanel {
     }
 
     override func cancelOperation(_ sender: Any?) {
-        guard let onCancelOperation else {
+        HangTrace.mark("panel.cancelOperation", "allowsClose=\(allowsClose)")
+        // 正在收尾（`dismiss()` 已开始）时回落到 `NSWindow` 的默认实现，避免
+        // 重入 `finish()` / 在会话已清空后再走一遍 Esc 判定。
+        guard let onCancelOperation, !allowsClose else {
             EscapeTrace.log("panel.cancelOperation", "unhandled")
             super.cancelOperation(sender)
             return

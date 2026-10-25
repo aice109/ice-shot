@@ -1,6 +1,54 @@
 import AppKit
 import SwiftUI
 
+/// 纯 AppKit 的反馈胶囊：一轮圆角背景 + 一行文字。
+///
+/// 用 AppKit 而不是 SwiftUI，是为了在任何调用栈里都能安全创建——
+/// 这个面板经常出现在「SwiftUI 视图正在拆除」的栈上（见 `FeedbackHUDController.show`）。
+private final class FeedbackBadgeView: NSView {
+    private let message: String
+
+    init(message: String) {
+        self.message = message
+        super.init(frame: .zero)
+        wantsLayer = true
+        layer?.cornerRadius = 12
+        layer?.cornerCurve = .continuous
+        // 与 `glassSurface(.clear)` 观感一致：半透明深色底 + 细描边。
+        layer?.backgroundColor = NSColor.black.withAlphaComponent(0.62).cgColor
+        layer?.borderWidth = 1
+        layer?.borderColor = NSColor.white.withAlphaComponent(0.28).cgColor
+    }
+
+    required init?(coder: NSCoder) {
+        nil
+    }
+
+    override var isFlipped: Bool { true }
+
+    override func draw(_ dirtyRect: NSRect) {
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.preferredFont(forTextStyle: .callout),
+            .foregroundColor: NSColor.labelColor,
+        ]
+        let text = message as NSString
+        let textSize = text.size(withAttributes: attributes)
+        let origin = CGPoint(
+            x: (bounds.width - textSize.width) / 2,
+            y: (bounds.height - textSize.height) / 2
+        )
+        text.draw(at: origin, withAttributes: attributes)
+    }
+
+    override var intrinsicContentSize: NSSize {
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.preferredFont(forTextStyle: .callout),
+        ]
+        let size = (message as NSString).size(withAttributes: attributes)
+        return NSSize(width: ceil(size.width) + 28, height: ceil(size.height) + 18)
+    }
+}
+
 /// 复制 / 保存成功后的轻量反馈，不申请通知权限。
 @MainActor
 final class FeedbackHUDController {
@@ -17,7 +65,9 @@ final class FeedbackHUDController {
 
         guard let screen else { return }
 
-        let size = NSSize(width: 240, height: 44)
+        // 宽度按文字实测，避免英文提示被截断（之前固定 240 pt）。
+        let badge = FeedbackBadgeView(message: message)
+        let size = badge.intrinsicContentSize
         let origin = CGPoint(
             x: screen.visibleFrame.midX - size.width / 2,
             y: screen.visibleFrame.minY + 72
@@ -37,14 +87,13 @@ final class FeedbackHUDController {
         panel.ignoresMouseEvents = true
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
-        panel.contentView = NSHostingView(
-            rootView: Text(message)
-                .font(.callout)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 9)
-                .glassSurface(.clear, contrast: .none, in: Capsule())
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        )
+        // **刻意不用 `NSHostingView`**。
+        //
+        // 反馈面板经常是在「截取浮层正在拆除」的同步栈里被创建的（见 `pinResult`）。
+        // 那一刻再嵌一个 SwiftUI 宿主，等于在 SwiftUI 自己的拆除过程中重入它的
+        // 状态容器与图更新，实测会导致点「贴图」后主线程卡死。
+        // 这里改用纯 AppKit 画一个胶囊 + 文字：没有 SwiftUI 参与，也就不存在重入。
+        panel.contentView = badge
         panel.orderFrontRegardless()
         self.panel = panel
 
