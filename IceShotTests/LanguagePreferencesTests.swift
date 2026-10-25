@@ -76,6 +76,40 @@ struct LanguagePreferencesTests {
     ///
     /// 旧实现这里直接 `return false`，于是用户从「English」切回「跟随系统」时，
     /// 若系统是中文，画面纹丝不动也没有任何提示。
+    /// 真实读取路径：不传 `systemLanguage`，让实现自己去问系统。
+    ///
+    /// 这是之前**漏掉的回归**：上面的测试都显式传入了 `systemLanguage`，
+    /// 绕过了 `systemPreferredLanguageCode()`，所以没发现它读的
+    /// `Locale.preferredLanguages` 会被本应用写入的 `AppleLanguages` 污染——
+    /// 而 `apply()` 恰好就在写那个键，于是切回跟随系统时永远算成「不需要重启」。
+    @Test func systemPreferredLanguageIsNotPollutedByAppWrites() {
+        let defaults = UserDefaults.standard
+        let original = defaults.object(forKey: LanguagePreferences.appleLanguagesKey)
+        defer {
+            // 无论断言成败都把现场恢复回去，不能污染其他用例。
+            if let original {
+                defaults.set(original, forKey: LanguagePreferences.appleLanguagesKey)
+            } else {
+                defaults.removeObject(forKey: LanguagePreferences.appleLanguagesKey)
+            }
+            defaults.synchronize()
+        }
+
+        // 模拟「用户选了英文」：apply 会写 AppleLanguages，
+        // 而 `Locale.preferredLanguages` 会跟着变（实测量到的行为）。
+        LanguagePreferences.apply(.english, to: defaults)
+        let whileEnglish = LanguagePreferences.systemPreferredLanguageCode()
+
+        // 恢复跟随系统。
+        LanguagePreferences.apply(.system, to: defaults)
+        let whileSystem = LanguagePreferences.systemPreferredLanguageCode()
+
+        #expect(
+            whileEnglish == whileSystem,
+            "系统语言不应随本应用的写入变化"
+        )
+    }
+
     @Test func systemChoiceNeedsRestartWhenSystemLanguageDiffers() {
         let bundle = appBundle()
         guard let active = LanguagePreferences.activeLanguageCode(bundle: bundle) else {

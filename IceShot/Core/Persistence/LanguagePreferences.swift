@@ -87,11 +87,24 @@ enum LanguagePreferences {
 
     /// 系统偏好（用户没给本应用单独指定语言时）会解析出哪种语言。
     ///
-    /// 用 `Locale.preferredLanguages` 而不是 `Bundle.main`：
-    /// `Bundle.main.preferredLocalizations` 反映的是**本进程启动时**的解析结果，
-    /// 而这里要问的是「如果现在重启、把决定权交还系统，会变成什么」。
+    /// **不能直接用 `Locale.preferredLanguages`**：实测它会随本应用写入的
+    /// `AppleLanguages` 立即变化（写 `["en"]` 后立刻变成 `["en"]`，删掉后又变回去）。
+    /// 而 `apply()` 恰好就是在写这个键，于是判断「跟随系统会变成什么」时
+    /// 读到的是**被自己写脏的值**，`.system` 分支永远算成「不需要重启」——
+    /// 这正是「切回跟随系统没有重启提示」的成因。
+    ///
+    /// 所以这里直接读**全局域**（`.GlobalPreferences`）里的 `AppleLanguages`，
+    /// 那才是用户在「系统设置 > 语言与地区」里的真实选择，不受本应用写入影响。
     static func systemPreferredLanguageCode() -> String? {
-        Locale.preferredLanguages.first
+        // 全局域是系统语言设置的源头；本应用写的是 application 域，不会污染它。
+        if let languages = UserDefaults.standard
+            .persistentDomain(forName: UserDefaults.globalDomain)?["AppleLanguages"] as? [String],
+           let first = languages.first {
+            return first
+        }
+        // 拿不到全局域时退回 `Locale`：它可能被本应用的写入影响，
+        // 但总比完全判不出好，且只在极罕路径上发生。
+        return Locale.preferredLanguages.first
     }
 
     /// 当前偏好生效后，界面语言是否与之一致。不一致说明需要重启。
@@ -100,28 +113,32 @@ enum LanguagePreferences {
     /// 用户从「English」切回「跟随系统」时，若系统是中文，
     /// 不重启就仍然是英文界面。早期版本这里直接 `return false`，
     /// 导致切回跟随系统后毫无反应也没提示。
+    ///
+    /// 比对基准是**本次启动实际生效的语言**（`launchLanguageCode`），
+    /// 不是「上次选择」：用户可能连续改好几次，只要没重启，
+    /// 界面就还是启动时那个，拿它比才能得出正确结论。
     static func needsRestart(
         choice: Choice,
         bundle: Bundle = .main,
-        systemLanguage: String? = systemPreferredLanguageCode()
+        systemLanguage: String? = systemPreferredLanguageCode(),
+        activeLanguage: String? = nil
     ) -> Bool {
-        guard let active = activeLanguageCode(bundle: bundle) else { return false }
+        let active = activeLanguage ?? activeLanguageCode(bundle: bundle)
+        guard let active else { return false }
 
+        // 这个选择生效后会跑哪种语言；算不出来 = 无法判断，不提示。
+        let expected: String?
         switch choice {
         case .system:
-            // 交还系统后应该跑哪种语言：系统偏好里本应用能提供的第一个。
-            guard let systemLanguage,
-                  let expected = matchingLocalization(for: systemLanguage, in: bundle)
-            else {
-                // 系统偏好信息拿不到：无法判断，不提示比误提示好。
-                return false
-            }
-            return !active.hasPrefix(expected)
+            expected = systemLanguage.flatMap { matchingLocalization(for: $0, in: bundle) }
         case .simplifiedChinese:
-            return !active.hasPrefix("zh")
+            expected = bundle.localizations.first { $0.hasPrefix("zh") }
         case .english:
-            return !active.hasPrefix("en")
+            expected = bundle.localizations.first { $0.hasPrefix("en") }
         }
+
+        guard let expected else { return false }
+        return !active.hasPrefix(expected)
     }
 
     /// 把系统语言标识（如 `zh-Hans-CN`）映射到本 bundle 实际提供的那一种（如 `zh-Hans`）。
