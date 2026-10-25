@@ -70,6 +70,9 @@ final class UpdateChecker {
     /// 为 `nil` 时界面不提供应用内下载（例如无法定位临时目录）。
     private let downloader: (any UpdateDownloading)?
     private let now: @Sendable () -> Date
+    /// 是否为自动化环境（测试宿主）。判据注入而非写死，否则本类型的单测
+    /// 自己也算「测试环境」，所有用例会在第一道 guard 就提前返回。
+    private let isAutomation: @Sendable () -> Bool
     /// 当前构建版本，构造时取一次即可（运行期不会变，也保证单测可控）。
     private let currentVersion: SemanticVersion?
 
@@ -88,7 +91,8 @@ final class UpdateChecker {
         presenter: UpdatePresenting,
         downloader: (any UpdateDownloading)? = nil,
         currentVersion: SemanticVersion? = SemanticVersion(tag: AppVersion.shortVersion),
-        now: @escaping @Sendable () -> Date = { Date() }
+        now: @escaping @Sendable () -> Date = { Date() },
+        isAutomation: @escaping @Sendable () -> Bool = { TestEnvironment.isAutomation() }
     ) {
         self.fetch = fetch
         self.defaults = defaults
@@ -96,6 +100,7 @@ final class UpdateChecker {
         self.downloader = downloader
         self.currentVersion = currentVersion
         self.now = now
+        self.isAutomation = isAutomation
         self.isEnabled = defaults.object(forKey: UpdatePreferences.enabledKey) as? Bool
             ?? UpdatePreferences.isEnabledByDefault
         self.skippedVersion = defaults.string(forKey: UpdatePreferences.skippedVersionKey)
@@ -108,6 +113,12 @@ final class UpdateChecker {
     /// 生产调用方忽略返回值即可。
     @discardableResult
     func checkIfDue() -> Task<Void, Never>? {
+        // 自动化环境下一律不联网、不弹窗。
+        //
+        // 这里必须自己再挡一次，不能只靠 `AppDelegate` 启动时的 `guard`：
+        // 菜单栏面板打开时也会调本方法，而且那个 `guard` 一旦被改动，
+        // 「测试里跑去打开 GitHub」会静默地回来（表现为每跑一次门禁多开几十个标签）。
+        guard !isAutomation() else { return nil }
         guard isEnabled else { return nil }
         guard isDue else { return nil }
         return Task { await run(promptUser: false) }
@@ -115,6 +126,8 @@ final class UpdateChecker {
 
     /// 手动入口：不受节流约束，失败与「已是最新」都要给用户明确答复。
     func checkNow() async {
+        // 同 `checkIfDue`：自动化环境不联网、不弹窗。
+        guard !isAutomation() else { return }
         await run(promptUser: true)
     }
 
@@ -193,6 +206,11 @@ final class UpdateChecker {
     // MARK: - 弹窗
 
     private func presentUpdate(_ release: RemoteRelease, version: SemanticVersion) {
+        // 自动化环境绝不开网页。这里是「开浏览器」的最终出口，
+        // 即使上游的 `checkIfDue` / `checkNow` 保护将来被改，也不会变成
+        // 无人值守时反复打开发布页（每跑一次门禁多出几十个标签）。
+        guard !isAutomation() else { return }
+
         let asset = release.diskImage
         let choice = presenter.presentUpdate(
             version: version.displayText,

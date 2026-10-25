@@ -29,7 +29,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var observers: [NSObjectProtocol] = []
 
     override init() {
-        let isTestHost = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+        // 判定见 `TestEnvironment`：UI 测试启动的是真实 App 进程，
+        // 拿不到 `XCTestConfigurationFilePath`，所以不能只靠那一个变量。
+        let isTestHost = TestEnvironment.isAutomation()
         self.isTestHost = isTestHost
 
         var runtime: LibraryRuntime?

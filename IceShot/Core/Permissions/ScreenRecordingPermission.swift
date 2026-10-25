@@ -57,6 +57,8 @@ final class ScreenRecordingPermission: ScreenRecordingPermissionChecking {
     }
 
     func openSystemSettings() {
+        // 自动化环境不弹系统设置：UI 测试无人值守，弹了也没人关。
+        guard !TestEnvironment.isAutomation() else { return }
         guard let url = URL(
             string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
         ) else {

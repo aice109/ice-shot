@@ -116,7 +116,10 @@ struct UpdateCheckerTests {
             defaults: defaults,
             presenter: presenter,
             currentVersion: SemanticVersion(tag: current),
-            now: { now }
+            now: { now },
+            // 单测在测试环境里跑，而默认判据会把自己的环境判成自动化，
+            // 于是所有用例都会在第一道 guard 提前返回。这里显式关掉。
+            isAutomation: { false }
         )
     }
 
@@ -339,7 +342,8 @@ struct UpdateCheckerTests {
             defaults: defaults,
             presenter: secondPresenter,
             currentVersion: SemanticVersion(tag: "0.3.1"),
-            now: { later }
+            now: { later },
+            isAutomation: { false }
         )
 
         await secondChecker.checkIfDue()?.value
@@ -424,7 +428,8 @@ struct UpdateCheckerTests {
             defaults: makeDefaults(),
             presenter: presenter,
             downloader: downloader,
-            currentVersion: SemanticVersion(tag: "0.3.1")
+            currentVersion: SemanticVersion(tag: "0.3.1"),
+            isAutomation: { false }
         )
 
         await checker.checkNow()
@@ -449,7 +454,8 @@ struct UpdateCheckerTests {
             defaults: makeDefaults(),
             presenter: presenter,
             downloader: downloader,
-            currentVersion: SemanticVersion(tag: "0.3.1")
+            currentVersion: SemanticVersion(tag: "0.3.1"),
+            isAutomation: { false }
         )
 
         await checker.checkNow()
@@ -470,7 +476,8 @@ struct UpdateCheckerTests {
             defaults: makeDefaults(),
             presenter: presenter,
             downloader: nil,
-            currentVersion: SemanticVersion(tag: "0.3.1")
+            currentVersion: SemanticVersion(tag: "0.3.1"),
+            isAutomation: { false }
         )
 
         await checker.checkNow()
@@ -494,7 +501,8 @@ struct UpdateCheckerTests {
             defaults: makeDefaults(),
             presenter: presenter,
             downloader: downloader,
-            currentVersion: SemanticVersion(tag: "0.3.1")
+            currentVersion: SemanticVersion(tag: "0.3.1"),
+            isAutomation: { false }
         )
 
         await checker.checkNow()
@@ -502,5 +510,35 @@ struct UpdateCheckerTests {
 
         #expect(presenter.finishedURLs.isEmpty)
         #expect(presenter.downloadFailureCalls == 0)
+    }
+    // MARK: - 自动化环境必须完全静默
+
+    /// 自动化环境（测试宿主）下不能联网、不能弹窗、更不能打开浏览器。
+    ///
+    /// 真机上踩到的问题：UI 测试启动的是真实 App 进程，判不出「我在测试里」，
+    /// 于是每次跑门禁都联网检查更新并弹模态框；那个框的默认按钮是「前往下载」，
+    /// 被点到就反复打开 GitHub 发布页——一会儿就开几十个标签。
+    @MainActor
+    @Test func automationNeverFetchesOrPrompts() async {
+        let fetcher = FakeFetcher(result: .success(Self.makeRelease(tag: "v9.9.9")))
+        let presenter = FakePresenter()
+        let checker = UpdateChecker(
+            fetch: fetcher,
+            defaults: makeDefaults(),
+            presenter: presenter,
+            currentVersion: SemanticVersion(tag: "0.3.1"),
+            isAutomation: { true }
+        )
+
+        // 自动入口直接不发起检查。
+        #expect(checker.checkIfDue() == nil)
+        #expect(fetcher.callCount == 0)
+
+        // 手动入口同样静默。
+        await checker.checkNow()
+        #expect(fetcher.callCount == 0)
+        #expect(presenter.updateVersions.isEmpty)
+        #expect(presenter.failureCalls == 0)
+        #expect(presenter.upToDateCalls == 0)
     }
 }
