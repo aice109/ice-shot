@@ -15,14 +15,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let pins: PinBoard
     /// 应用级短反馈（复制 / 保存 / 取字复制条码…）：跨窗口共用一条通道。
     let feedback: FeedbackHUDController
-    /// 更新检查：启动与菜单栏面板打开时调用，状态也被设置页读取。
-    let updates: UpdateChecker
     let modelContainer: ModelContainer?
     let library: LibraryStore?
     let startupError: String?
 
     /// 有常规窗口时显示 Dock 图标，全部关闭后回到菜单栏形态。
-    /// 测试宿主标记：测试也会启动 App，不能弹欢迎框、注册快捷键或联网检查更新。
+    /// 测试宿主标记：测试也会启动 App，不能弹欢迎框或注册快捷键。
     private let isTestHost: Bool
     private var activationPolicy: ActivationPolicyController?
     private var permissionOnboarding: PermissionOnboardingWindowController?
@@ -61,15 +59,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.editor = editor
         self.pins = pins
         self.feedback = feedback
-        // 应用内下载写沙盒临时目录，由历史库的路径布局提供；拿不到路径时
-        // 不传下载器，界面自然只保留网页下载。
-        let downloader: (any UpdateDownloading)? = runtime.map {
-            URLSessionUpdateDownloader(tempDirectory: $0.paths.tempDirectory)
-        }
-        self.updates = UpdateChecker(
-            presenter: AlertUpdatePresenter(),
-            downloader: downloader
-        )
         self.modelContainer = runtime?.container
         self.library = runtime?.store
         self.startupError = startupError
@@ -97,15 +86,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         presentStartupGuidance()
-        // 启动也是检查点之一（另一处是菜单栏面板打开）；两者共用 24 小时节流。
-        //
-        // 不能直接同步调：`presentStartupGuidance()` 可能弹出模态的权限引导窗口，
-        // 把人挡在外面；而 `NSAlert.runModal()` 也需要 App 已完成启动、激活策略就绪。
-        // 推到下一轮 RunLoop 再查，此时启动引导已经稳定下来。
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(500))
-            updates.checkIfDue()
-        }
     }
 
     /// 未授权时先弹权限引导窗口；已授权且首次启动时再说明应用在菜单栏。

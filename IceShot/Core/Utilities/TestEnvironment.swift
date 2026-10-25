@@ -5,10 +5,8 @@ import Foundation
 /// 为什么要有这一层：
 /// - 单测进程里能用 `XCTestConfigurationFilePath` 判断；
 /// - 但 UI 测试用 `XCUIApplication().launch()` 启动的是**真实的 App 进程**，
-///   它不继承那个变量。App 于是以为自己是被用户正常启动的，照常联网检查更新、
-///   弹出「发现新版本」模态框。那个框的默认按钮是「前往下载」，
-///   无人值守跑门禁时会被点到，反复 `NSWorkspace.open` 发布页——
-///   表现就是「每跑一次测试就多开几十个浏览器标签」。
+///   它不继承那个变量。App 于是以为自己是被用户正常启动的，会弹欢迎框、
+///   注册全局快捷键，干扰无人值守跑门禁。
 ///
 /// 所以判定按「**任一**线索命中即算自动化」，并且优先信任我们自己的显式开关
 /// `ICESHOT_DISABLE_AUTOMATION`（由 `IceShotUITests` 在 `launchEnvironment` 里注入）。
@@ -20,7 +18,7 @@ enum TestEnvironment {
     /// 判定所需的线索全部做成参数，便于单测——不需要真的跑在测试环境里。
     ///
     /// `nonisolated`：它只读 `ProcessInfo` / `Bundle`，没有任何共享状态，
-    /// 需要从任意线程（包括 `UpdateChecker` 的初始化）调用。
+    /// 需要从任意线程调用。
     nonisolated static func isAutomation(
         environment: [String: String] = ProcessInfo.processInfo.environment,
         bundleIdentifier: String? = Bundle.main.bundleIdentifier,

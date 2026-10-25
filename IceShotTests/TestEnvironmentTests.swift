@@ -4,10 +4,9 @@ import Testing
 
 /// 自动化环境判定。
 ///
-/// 这组用例锁的是一个真机上踩到的问题：**每跑一次门禁就多开几十个浏览器标签**。
-/// 根因是 UI 测试用 `XCUIApplication().launch()` 启动的是真实 App 进程，
-/// 它拿不到进程内单测才有的 `XCTestConfigurationFilePath`，于是被判成「正常启动」，
-/// 联网检查更新并弹出模态框；那个框的默认按钮是「前往下载」，被点到就开浏览器。
+/// UI 测试用 `XCUIApplication().launch()` 启动的是真实 App 进程，
+/// 它拿不到进程内单测才有的 `XCTestConfigurationFilePath`，于是会被判成「正常启动」，
+/// 弹出欢迎框并注册全局快捷键，干扰无人值守跑门禁。
 struct TestEnvironmentTests {
     @Test("没有自动化线索时判为普通启动")
     func plainLaunchIsNotAutomation() {

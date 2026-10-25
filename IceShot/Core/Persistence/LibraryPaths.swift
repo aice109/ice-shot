@@ -24,7 +24,7 @@ nonisolated struct LibraryPaths: Sendable {
         baseURL.appendingPathComponent("Pins", isDirectory: true)
     }
 
-    /// 一次性临时文件（如更新下载），启动与维护时清理。
+    /// 一次性临时文件（如另存的导出），启动与维护时清理。
     var tempDirectory: URL {
         baseURL.appendingPathComponent("Temp", isDirectory: true)
     }

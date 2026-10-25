@@ -198,7 +198,7 @@ IceShot/
 │   ├── Pinning/            贴图窗口的领域模型
 │   ├── Interaction/        光标、坐标换算
 │   ├── Permissions/        屏幕录制权限
-│   ├── AppInfo/            版本号、更新检查
+│   ├── AppInfo/            版本号与发布通道
 │   ├── DesignSystem/       GlassSurface（材质封装，唯一在 Core 里的 SwiftUI）
 │   └── Utilities/
 └── Features/               ≈ ui 层（页面 + 组件）
@@ -251,15 +251,15 @@ AppDelegate.init()
   ├─ FeedbackHUDController()        "已复制"这类短反馈的统一通道
   ├─ EditorCoordinator(pins:feedback:library:)   编辑器窗口持有者（同时只留一个窗口）
   ├─ CaptureCoordinator(history:pins:editor:feedback:)   截图总协调器
-  ├─ GlobalHotkeyManager(coordinator:)   全局热键，动作最终也是调 coordinator
-  └─ UpdateChecker(presenter:downloader:)  GitHub Release 更新检查
+  └─ GlobalHotkeyManager(coordinator:)   全局热键，动作最终也是调 coordinator
 ```
 
 `applicationDidFinishLaunching` 里做四件事：注册热键、建激活策略控制器、做权限预检并弹引导、
-跑历史库维护（清理过期）、延迟 500ms 检查更新（避免和模态引导抢焦点）。
+跑历史库维护（清理过期）。
 
-**测试宿主判定**：`ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil`
-时跳过欢迎框、热键注册、联网检查。你加启动逻辑时**必须**尊重这个开关，否则测试会卡住。
+**测试宿主判定**：启动的是测试进程时跳过欢迎框与热键注册。
+判据在 `Core/Utilities/TestEnvironment.swift`（UI 测试拿不到 `XCTestConfigurationFilePath`，
+所以按多条线索判断）。你加启动逻辑时**必须**尊重这个开关，否则测试会卡住。
 
 ### 5.3 `Features/Capture/CaptureCoordinator.swift` —— 一次截图的完整生命周期
 
@@ -522,7 +522,7 @@ Scripts/gate.sh
 ### 绝对不要碰的（会变成安全事故或数据损坏）
 
 1. 新增系统权限（当前只有屏幕录制）。
-2. 新增网络端点（白名单只有 `api.github.com` 和 `objects.githubusercontent.com`）。
+2. 新增联网能力（App 当前完全不联网，entitlements 里没有 `com.apple.security.network.client`）。
 3. 改隐私承诺（README「隐私」节、roadmap「不变的底线」）。
 4. 改签名与发布链路（`Signing.xcconfig`、`Scripts/package.sh`、`Scripts/gate.sh` 判据）。
 5. 删路线图里的 ❌ 项。

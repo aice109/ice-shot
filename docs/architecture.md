@@ -28,7 +28,7 @@ IceShot/
 | 文件 | 职责 |
 | --- | --- |
 | `IceShotApp.swift` | `@main`。只声明 `MenuBarExtra`、`Window("历史记录")`、`Settings` 三个 Scene。**Scene 只做组装，不创建业务对象**。 |
-| `App/AppDelegate.swift` | **唯一组合根**。集中创建 `CaptureCoordinator`、`GlobalHotkeyManager`、`EditorCoordinator`、`PinBoard`、`FeedbackHUDController`、`UpdateChecker`、`ModelContainer`、`LibraryStore`，持有 `startupError`。 |
+| `App/AppDelegate.swift` | **唯一组合根**。集中创建 `CaptureCoordinator`、`GlobalHotkeyManager`、`EditorCoordinator`、`PinBoard`、`FeedbackHUDController`、`ModelContainer`、`LibraryStore`，持有 `startupError`。 |
 | `App/ActivationPolicyController.swift` | 运行时在 `.regular` ⇄ `.accessory` 之间切换，普通窗口存在时才显示 Dock 图标。 |
 | `App/MenuBarView.swift` | 菜单栏面板 UI：权限状态、各截取入口、历史与设置。 |
 | `App/HotkeyMenuShortcut.swift` | 把 `HotkeyBinding` 映射成 SwiftUI 的 `KeyEquivalent` / `EventModifiers`，供菜单快捷键使用。 |
@@ -44,7 +44,7 @@ IceShot/
 
 | 目录 | 职责 |
 | --- | --- |
-| `AppInfo/` | 版本号、语义化版本比较、更新检查与下载、更新偏好与进度面板、更新日志文案整形。 |
+| `AppInfo/` | 版本号与发布通道（`AppVersion`）、对外链接（`ProjectLinks`）。App 不联网，没有任何更新检查代码；链接只在用户点击时交给系统浏览器。 |
 | `Capture/` | 截取领域：`ScreenCaptureService`（真实现）与 `ScreenCapturing`（协议）、`DisplayGeometry`、`SelectionGeometry`、`MagnifierGeometry`、`WindowDescriptor`、`PointerSelection`、`ResizeHandle`、`LastRegion`、`ScrollCapture/`（长截图拼接）。 |
 | `DesignSystem/` | 目前只有 `GlassSurface.swift`：系统材质的统一封装。见 [ui-guidelines](ui-guidelines.md)。 |
 | `Hotkeys/` | 全局快捷键的模型与注册。 |
@@ -93,7 +93,7 @@ IceShot/
 - **UI 一律 `@MainActor`**。绝大多数 `Features/` 与 `App/` 类型都标注了。
 - **跨并发域传递的值类型标 `Sendable`**。如 `DisplayFrame`、`SelectionResult`、`WindowDescriptor`、`LastRegion`、`CaptureError`。
 - **磁盘 IO 走 `actor`**。`Core/Persistence/FileStore.swift` 是标准范例：所有磁盘操作在 actor 内，只接受/返回相对文件名。
-- **不让非 Sendable 类型跨 actor**。`UpdateProgressPanel` 的做法可参考：用盒子把数值 hop 回主 actor 再转交。
+- **不让非 Sendable 类型跨 actor**。需要把值从后台 hop 回主 actor 时，用一个只读的 `Sendable` 盒子包住数值再转交，不要把 `self` 或 UI 对象自己送过去。
 
 新增跨界传值时不标 `Sendable`，编译器不会报错，但运行时可能崩。这是本仓库最容易埋雷的地方。
 

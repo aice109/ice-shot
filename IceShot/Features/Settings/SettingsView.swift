@@ -9,7 +9,6 @@ struct SettingsView: View {
     let coordinator: CaptureCoordinator
     let hotkeys: GlobalHotkeyManager?
     let library: LibraryStore?
-    let updates: UpdateChecker?
 
     @AppStorage(HistoryPreferences.enabledKey) private var historyEnabled = true
     @AppStorage(OCRPreferences.autoRecognizeKey) private var autoRecognize = true
@@ -86,9 +85,18 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                if let updates {
-                    updateSection(updates)
+                HStack {
+                    Button("在 GitHub 上查看源码") {
+                        open(ProjectLinks.repository)
+                    }
+                    Button("前往发布页下载新版本") {
+                        open(ProjectLinks.latestRelease)
+                    }
                 }
+                Text("IceShot 自身不联网，不会自动检查更新；新版本请到发布页下载。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text("截图默认只在本机处理，不上传。")
                     .foregroundStyle(.secondary)
             }
@@ -161,26 +169,11 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - 更新
+    // MARK: - 动作
 
-    /// 自动检查开关 + 手动入口。
-    ///
-    /// 开关直接绑 `UpdateChecker.isEnabled`（它负责落盘），不用 `@AppStorage`：
-    /// 检查器要立即感知开关变化，两处各自持一份状态容易出现「关掉了却还在查」。
-    @ViewBuilder
-    private func updateSection(_ updates: UpdateChecker) -> some View {
-        @Bindable var updates = updates
-
-        Toggle("自动检查更新", isOn: $updates.isEnabled)
-        Text("每天最多检查一次，只请求 GitHub 的 Release 接口，不上传任何数据。")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
-
-        Button("立即检查一次") {
-            Task { await updates.checkNow() }
-        }
-        .disabled(!updates.isEnabled)
+    /// 链接只在用户点击时交给系统浏览器，App 自身不发任何网络请求。
+    private func open(_ url: URL) {
+        NSWorkspace.shared.open(url)
     }
 
     // MARK: - 全局快捷键

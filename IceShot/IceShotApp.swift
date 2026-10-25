@@ -23,8 +23,7 @@ struct IceShotApp: App {
                 coordinator: coordinator,
                 hotkeys: appDelegate.hotkeys,
                 library: appDelegate.library,
-                pins: appDelegate.pins,
-                updates: appDelegate.updates
+                pins: appDelegate.pins
             )
         } label: {
             Image("MenuBarIcon")
@@ -227,8 +226,7 @@ struct IceShotApp: App {
             SettingsView(
                 coordinator: coordinator,
                 hotkeys: appDelegate.hotkeys,
-                library: appDelegate.library,
-                updates: appDelegate.updates
+                library: appDelegate.library
             )
         }
         .restorationBehavior(.disabled)

@@ -66,7 +66,8 @@ cp Signing.local.xcconfig.example Signing.local.xcconfig   # 然后填 DEVELOPME
 遇到即停下来问，不要自行决定。
 
 1. **新增系统权限** —— 辅助功能、输入监控、完全磁盘访问、自动化等。当前只用屏幕录制。
-2. **新增网络端点** —— 白名单只有 `api.github.com` 与 `objects.githubusercontent.com`。
+2. **新增联网能力** —— App 当前**完全不联网**，entitlements 里没有 `com.apple.security.network.client`。
+   任何网络请求（端点、白名单、权限）都要先停下来问。
 3. **修改隐私承诺** —— README「隐私」节、路线图「不变的底线」。
 4. **修改签名与发布链路** —— `Signing.xcconfig`、`Scripts/package.sh`、`Scripts/gate.sh` 的判据。
 5. **删除路线图的 ❌ 项** —— 已取消的能力必须留档，以免重复讨论。
@@ -103,11 +104,11 @@ feat(编辑器): 支持在编辑器内删除历史截图
 fix(长截图): 确认选区后先归还前台再开始采集
 fix(scripts): 打包输出不再声称无联网权限
 chore(release): 0.3.4
-feat: 应用内更新提示
+feat: 设置窗口支持侧边栏导航
 ```
 
 类型用 `feat` / `fix` / `chore` / `refactor` / `test` / `docs`。
-scope 用中文功能名（`编辑器`、`长截图`、`更新`），或脚本目录名（`scripts`）。
+scope 用中文功能名（`编辑器`、`长截图`、`设置`），或脚本目录名（`scripts`）。
 
 ### 测试
 
