@@ -26,76 +26,135 @@ enum SelectionCursorRule {
         var isHoveringWindows: Bool
         /// 正在拉新选区（按下未松手）。拖拽期间指针跑出选区是本意，不能报「无效」。
         var isCreatingSelection: Bool
-        /// 当前选中的标注工具（`nil` = 无工具态）。
+        /// 指针是否落在**已有标注的实际可修改区域**上（矩形只算描边、不算中间空白）。
+        /// 命中即抓手：任何工具下都能直接拖走旧标注。
+        var isOverAnnotation: Bool = false
+        /// 正在拖动已有标注（按下未松手）。
+        var isMovingAnnotation: Bool = false
+        /// 指针落在操作条（含其弹出的浮窗）上。
         ///
-        /// 只影响「选区内」的口径：工具亮着时鼠标语义是「落笔」，
-        /// 边缘不应再抡成缩放箭头；图外 / 图幅边缘与无工具态一致。
+        /// 操作条是压在暗区上的**界面控件**，不是画布的一部分——指针在上面时永远是
+        /// 正常箭头，不能因为「它在选区外」就报禁止，也不能因为它压着边框就报缩放。
+        var isOverToolbar: Bool = false
+        /// 当前选中的标注工具（`nil` = 编辑态但没传工具信息）。
+        ///
+        /// 决定「选区内」的口径：绘制类 = 落笔光标，选择态 = 箭头，
+        /// 两者都不再抡成边缘缩放箭头。
         var markupTool: EditorTool?
     }
 
-    /// 缩放手柄的命中半径：按到像素边缘的距离算。
-    ///
-    /// 取 4：手柄圆圈半径 5，命中比它略大一点，手不用瞄准到像素级，但也不会让
-    /// 整条边都变成「缩放区」——只有真正贴着边缘才换缩放箭头。
-    static let edgeTolerance: CGFloat = 4
+    /// 角与边**中点**的命中半径。手柄圆圈半径是 5，命中区取 6 比它略大一点。
+    static let edgeTolerance: CGFloat = 6
 
-    /// 给出应该显示的光标。
+    /// 边带宽度：**整条边**都能拉，不只是中点那一点。
     ///
-    /// 优先序（从高到低）：
-    /// 1. 拖移选区中：抓紧（松手前不变，否则中途会跳一下）。
-    /// 2. 还没框选：十字——这一阶段整屏的动作就是拉新选区 / 点窗口。
-    /// 3. 正在拉框：十字，指针拖到选区外也照旧（那是本意，不是无效操作）。
-    /// 4. 指针不在本屏：箭头。
-    /// 5. 贴在选区某条边 / 某个角上：该方向的缩放箭头（角优先于边）。
-    /// 6. 选区内 + 按住 Space：可抓取的抓手。
-    /// 7. 选区内、其余情况：箭头——那里没有任何动作。
-    /// 8. **选区外：禁止**——框已经定了，此时在选区外按下不会产生任何结果，
-    ///    用系统的「不可操作」光标把这件事说清楚（对齐微信截图）。
+    /// 以前这里复用 `edgeTolerance`（4）当 `edgeWidth`，而 `ResizeHitZone` 内部算的是
+    /// 半宽 `edgeWidth / 2` —— 于是边带只有 **2 pt**。指针几乎不可能精准停在 2 pt 内，
+    /// 真机上就是「四角能拉、四条边拉不动」。边带必须按「带宽」而不是「半宽」给值。
+    ///
+    /// 12 是权衡：够宽到随手能命中，又小于 `toolbarGap`（14），不会和操作条抢地方。
+    static let edgeBand: CGFloat = 12
+
+    /// 给出应该显示的光标。**纯区域判定，指针在哪一格就按那一格的规则。**
+    ///
+    /// 区域与优先级（从高到低，第一条命中就停）：
+    ///
+    /// | 区域 | 光标 |
+    /// | --- | --- |
+    /// | 手势中（拖标注 / 拖选区 / 拉新框） | 锁死，不随区域变 |
+    /// | 操作条（含浮窗） | 正常箭头 |
+    /// | 暗区（选区外） | 禁止 |
+    /// | 边框（四边含四角） | 该方向缩放 |
+    /// | 绘制区域（标注实际画到的范围） | 抓手 / 抓紧 |
+    /// | 截图区域 | 选择态箭头 · 文本 I · 其余十字 |
+    ///
+    /// 手势态排在最前：拖拽期间指针会跨过多个区域，按区域算会一路跳变，
+    /// 所以按下到松手之间光标锁死，松手后重新按区域算。
     static func cursor(for input: Input) -> PointerCursor {
+        // ── 手势中：锁死 ──
         if input.isMovingSelection {
             return .closedHand
         }
+        if input.isMovingAnnotation {
+            return .closedHand
+        }
+        // 拉框拖到选区外是本意，不能报禁止。指针为 `nil`（不在这块屏上）时除外——
+        // 那说明本帧根本没有指针数据，交给后面的通用分支给箭头最安全。
+        if input.isCreatingSelection, input.pointer != nil {
+            return .crosshair
+        }
+
+        // ── 操作条：界面控件，永远正常箭头 ──
+        if input.isOverToolbar {
+            return .arrow
+        }
+
+        // ── 还没框选：整屏的动作就是拉新框 / 点窗口 ──
         guard input.selection.width > 0, input.selection.height > 0 else {
-            // 没框选：要么在拉新框，要么等着点窗口，两种都从十字起手。
             return input.isHoveringWindows || input.pointer != nil ? .crosshair : .arrow
         }
         guard let point = input.pointer else {
             return .arrow
         }
-        if input.isCreatingSelection {
-            return .crosshair
-        }
-        // 选中标注工具后，选区内空白处为落笔光标（十字 / 文本 I）。
-        //
-        // 但按住 Space 时让位：那时用户明确说了「我要拖选区」，
-        // 抓手比十字更能说明「现在按住就能拖」，何况绘制手势那一刻也确实不生效。
-        // 边缘和角的缩放箭头同样让位。
-        if let tool = input.markupTool, tool.annotationKind != nil,
-           input.selection.contains(point),
-           !input.isSpacePressed {
-            // 文字工具 = 文本 I；其余绘制类 = 十字准星。
-            return tool == .text ? .iBeam : .crosshair
-        }
-        if !input.isSpacePressed, let axis = axis(at: point, selection: input.selection) {
-            return .resizing(axis)
-        }
-        if input.isSpacePressed, input.selection.contains(point) {
+
+        // ── 按住 Space = 明确要拖整个选区，选区内一律抓手 ──
+        if input.isSpacePressed, containsInclusive(input.selection, point) {
             return .openHand
         }
-        return input.selection.contains(point) ? .arrow : .notAllowed
+
+        // ── 边框（四边含四角）：调选区大小的专用地带，与当前工具无关 ──
+        //
+        // **先于暗区判定**：`CGRect.contains` 是半开区间，落在 `maxX` / `maxY` 上的点
+        // 会被判成「在选区外」，先判暗区就把整条右边、下边和四个角的缩放吃掉了。
+        // 边界带本来就是跨边界的（内外侧几 pt 都算），它盖住那一圈才是对的。
+        if let axis = axis(at: point, selection: input.selection) {
+            return .resizing(axis)
+        }
+
+        // ── 暗区：框已定，选区外按下没有任何结果 ──
+        guard containsInclusive(input.selection, point) else {
+            return .notAllowed
+        }
+
+        // ── 绘制区域：标注实际画到的地方（矩形只算描边，不算中间空白）──
+        if input.isOverAnnotation {
+            // 文字工具点在已有文字上 = 进编辑，与双击同一去向，光标得说同一句话。
+            return input.markupTool == .text ? .iBeam : .openHand
+        }
+
+        // ── 截图区域 ──
+        switch input.markupTool {
+        case .text:
+            return .iBeam
+        case .select, .none:
+            return .arrow
+        default:
+            return .crosshair
+        }
+    }
+
+    /// 闭区间包含判定。
+    ///
+    /// 不能直接用 `CGRect.contains`：它是**半开**的（含 minX/minY、不含 maxX/maxY），
+    /// 于是选区的右边、下边整条线都会被判成「在选区外」。
+    /// 光标判定里这一格尤其致命——那条线上本该是缩放箭头。
+    static func containsInclusive(_ rect: CGRect, _ point: CGPoint) -> Bool {
+        point.x >= rect.minX && point.x <= rect.maxX
+            && point.y >= rect.minY && point.y <= rect.maxY
     }
 
     /// 指针是否贴在选区边缘（含角）。也用于「按下时要不要开始缩放」。
     static func axis(
         at point: CGPoint,
         selection: CGRect,
-        tolerance: CGFloat = edgeTolerance
+        tolerance: CGFloat = edgeTolerance,
+        band: CGFloat = edgeBand
     ) -> ResizeAxis? {
         ResizeHitZone.axis(
             at: point,
             in: selection,
             radius: tolerance,
-            edgeWidth: tolerance
+            edgeWidth: band
         )
     }
 }

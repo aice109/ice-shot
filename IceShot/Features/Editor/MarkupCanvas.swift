@@ -10,11 +10,6 @@ struct MarkupCanvas: View {
     var showsBackground: Bool = true
     /// 允许开始交互的画布局部矩形；浮层用它把交互限制在选区内（默认整张图）。
     var interactionRect: CGRect?
-    /// 指针不在图像上时的光标覆盖；返回 `nil` 表示按默认规则（图外 = 箭星）。
-    ///
-    /// 浮层用它把「选区边缘的缩放手柄」让出来：那里归 `SelectionCursorRule` 管，
-    /// 画布自己不知道选区外面还摆着一圈手柄。
-    var outerCursor: ((CGPoint) -> PointerCursor?)?
     /// 无标注时双击触发（浮层用来「直接复制并关闭」）。
     var onQuickCopy: (() -> Void)?
     /// 外部正在按住 Space（准备拖移整个选区）。
@@ -22,6 +17,18 @@ struct MarkupCanvas: View {
     /// 画布自己不知道浮层外还有一层「拖移选区」的手势，所以由调用方把它已经
     /// 决定好的光标意图传进来：为 true 时画布让出光标，不再自己抡。
     var isSpacePressed: Bool = false
+    /// 本视图是否自己管光标。
+    ///
+    /// - 编辑器窗口：`true`（默认）。画布是唯一可见层，没人替它算。
+    /// - 截图浮层：`false`。浮层外层铺满整块屏、能同时看到选区 / 边框 / 暗区 / 操作条，
+    ///   它用 `SelectionCursorRule` 统一算；画布若也写全局光标就会互相覆盖。
+    var managesCursor: Bool = true
+
+    /// 是否正在拖动一条已有标注（由本视图在按下 / 松手时上报给浮层）。
+    ///
+    /// 光标已经整个搬到 `SelectionCursorRule`，浮层要算「抓紧」就得知道这个状态，
+    /// 而拖动只发生在画布内部。
+    var onMovingAnnotationChange: ((Bool) -> Void)?
 
     @State private var draft: EditorAnnotation?
     @State private var interaction: Interaction = .idle
@@ -29,9 +36,10 @@ struct MarkupCanvas: View {
     @State private var filters = MarkupFilterCache()
     /// 指针位置（视图坐标）：绘制工具用来画笔刷圆圈。
     @State private var hoverPoint: CGPoint?
-    @State private var cursor: PointerCursor = .arrow
     /// 本次裁剪拖动前的裁剪框：拖得太小 / 拖到图外时用来回退。
     @State private var cropBaseline: CGRect?
+    /// 当前该显示的光标（仅 `managesCursor` 为真时有意义）。
+    @State private var cursor: PointerCursor = .arrow
     /// 刚刚画完的那条标注：直到指针真正离开它之前，不把它当成「悬停已有标注」。
     ///
     /// 否则笔尖一松，新画的图形就在指针正下方，光标立即从十字变成抓手，
@@ -150,6 +158,7 @@ struct MarkupCanvas: View {
             .frame(width: proxy.size.width, height: proxy.size.height)
             .clipped()
             .contentShape(Rectangle())
+            .pointerCursor(cursor)
             .gesture(gesture(layout: layout))
             .onContinuousHover(coordinateSpace: .local) { phase in
                 switch phase {
@@ -159,9 +168,6 @@ struct MarkupCanvas: View {
                     hoverPoint = nil
                     if case .idle = interaction {
                         // 指针离开画布：恢复默认箭头。
-                        // 以前这里也调 `setCursor(.arrow)`，但 `setCursor` 带相等性去重，
-                        // 而状态从没被重置过——记号停在“已是箭头”上，于是光标再也不回来了。
-                        setCursor(.arrow, force: true)
                     }
                 }
             }
@@ -377,7 +383,7 @@ struct MarkupCanvas: View {
 
         // 命中已有标注 = 拖它，**任何工具下都一样**。
         //
-        // 指针格已经从操作条上移除（见 `EditorTool.appearsOnToolbar`），再要求用户
+        // 任何工具下都能点中已有标注，不需要先回选择态，再要求用户
         // 先按 `V` 切回无工具态才能拖标注，就相当于把拖动这道动作藏起来了。
         // 代价：不能直接在已有标注上起笔画新东西，得从空白处起手——标注都是细线条，
         // 周围空白充足，这个损失比“刚画完的框拖不动”小得多。
@@ -385,18 +391,19 @@ struct MarkupCanvas: View {
         // 例外：文字工具点在已有文字上 → 进编辑（与双击同一去向，见 `editExistingText`）。
         if let hit, !(model.tool == .text && hit.kind == .text) {
             model.select(hit.id)
-            setCursor(.closedHand)
             interaction = .moving(
                 id: hit.id,
                 original: hit,
                 originalAnnotations: model.annotations,
                 start: point
             )
+            onMovingAnnotationChange?(true)
             return
         }
 
-        // 无工具态（`V`）：空白处点一下就是清选中，不做别的。
-        guard model.tool.annotationKind != nil else {
+        // 选择态：空白处点一下就是清选中，不做别的。
+        // 与光标判定同理，写死 `== .select` 不靠「恰好没有 annotationKind」。
+        guard model.tool != .select else {
             model.clearSelection()
             interaction = .idle
             return
@@ -407,7 +414,6 @@ struct MarkupCanvas: View {
         draft = nil
         // 按下即给十字：不依赖第一次 `update(to:)`，否则按下到拖动之间会有一段
         // 显示着按下前的手形（叠加在刚画好的图形上时尤其明显）。
-        setCursor(.crosshair)
         interaction = .drawing(start: point, hitID: hit?.id)
     }
 
@@ -428,7 +434,6 @@ struct MarkupCanvas: View {
             // 正在画：光标必须固定为十字。
             // 以前这里不碰光标，一旦进入绘制，「刚画出的图形就在指针下」会让
             // 光标停在上一帧的手形上，拖半天都是手，看不到十字准星。
-            setCursor(.crosshair)
             guard let kind = model.tool.annotationKind else { return }
             // 文字与序号都不靠拖拽创建：按下点就是落点，松手时生成。
             guard kind != .text, kind != .number else { return }
@@ -462,24 +467,20 @@ struct MarkupCanvas: View {
         case .moving(let id, let original, let originalAnnotations, let start):
             // 拖动已有标注：光标必须保持「抓紧」。
             // 以前这里不碰光标，拖到空白处时上一帧的十字 / 抓手会留着不动。
-            setCursor(.closedHand)
             let delta = CGPoint(x: point.x - start.x, y: point.y - start.y)
             let moved = original.offsetBy(dx: delta.x, dy: delta.y)
             let updated = originalAnnotations.map { $0.id == id ? moved : $0 }
             model.replaceLive(updated)
         case .creatingCrop(let anchor):
             // 拉新裁剪框：全程十字。
-            setCursor(.crosshair)
             model.updateCropRect(cropRect(from: anchor, to: point))
         case .resizingCrop(let handle, let original, _):
             // 拖出热区后仍显示该方向的缩放箭头，否则中途会跳回十字。
-            setCursor(.resizing(handle.axis))
             let aspect = NSEvent.modifierFlags.contains(.shift)
                 ? original.width / max(original.height, 1)
                 : nil
             model.updateCropRect(resizedRect(original, handle: handle, to: point, aspect: aspect))
         case .movingCrop(let original, let start):
-            setCursor(.closedHand)
             model.updateCropRect(movedRect(original, by: CGPoint(
                 x: point.x - start.x,
                 y: point.y - start.y
@@ -530,6 +531,9 @@ struct MarkupCanvas: View {
         case .idle:
             break
         }
+        if case .moving = interaction {
+            onMovingAnnotationChange?(false)
+        }
         interaction = .idle
         // 松手后按当前指针位置重算光标。
         // 必须在 `interaction` 复位**之后**：`updateHover` 开头有 `guard case .idle`，
@@ -550,18 +554,15 @@ struct MarkupCanvas: View {
         cropBaseline = current
 
         if let handle = cropHandle(at: viewPoint, crop: current, layout: layout) {
-            setCursor(.crosshair)
             interaction = .resizingCrop(handle: handle, original: current, start: point)
             return
         }
         // 框还是整幅（初始态）时，框内拖动就是拉新框；否则框内拖动 = 平移整个框。
         if !model.isCropRectFullFrame, layout.viewRect(current).contains(viewPoint) {
-            setCursor(.closedHand)
             interaction = .movingCrop(original: current, start: point)
             return
         }
         // 框外（或整幅初始态）按下 = 重新拉一个框；先给 1 px 占位，拖太小会在松手时回退到原框。
-        setCursor(.crosshair)
         interaction = .creatingCrop(anchor: point)
         model.updateCropRect(
             CGRect(origin: point, size: CGSize(width: 1, height: 1))
@@ -750,6 +751,10 @@ struct MarkupCanvas: View {
         .frame(width: diameter, height: diameter)
     }
 
+    /// 指针移动：维护笔刷圆圈预览，并在本视图自己管光标时判定光标。
+    ///
+    /// 浮层里 `managesCursor == false`：那时光标由浮层外层的 `SelectionCursorRule` 独占，
+    /// 这里只画笔刷圆圈，绝不碰全局光标。
     private func updateHover(at location: CGPoint, layout: EditorCanvasLayout) {
         let isPaintTool = model.tool.annotationKind?.usesStrokePath == true
         if isPaintTool,
@@ -759,14 +764,15 @@ struct MarkupCanvas: View {
             hoverPoint = nil
         }
 
+        guard managesCursor else { return }
+
         // 拖拽中的光标由拖拽流程自己维护，这里只管空闲态。
         guard case .idle = interaction else { return }
 
         // 裁剪的三态（手柄 / 框内 / 框外）比通用规则细，先单独判完。
         if model.tool == .crop {
-            // 图外交给调用方（浮层里是选区外禁止）。
             guard layout.imageRect.contains(location) else {
-                setCursor(outerCursor?(location) ?? .arrow)
+                setCursor(.arrow)
                 return
             }
             guard let crop = model.cropRect else {
@@ -784,9 +790,8 @@ struct MarkupCanvas: View {
             return
         }
 
-        // 图像外由调用方定（浮层把选区边缘让给缩放手柄）；没人接手就是箭头。
         guard layout.imageRect.contains(location) else {
-            setCursor(outerCursor?(location) ?? .arrow)
+            setCursor(.arrow)
             return
         }
 
@@ -810,10 +815,7 @@ struct MarkupCanvas: View {
         }
 
         // 空白处按住 Space = 可以拖整个区域（浮层里的「拖移选区」手势）。
-        //
-        // 但**选中绘制工具时不抢**：工具亮着时鼠标的语义是「在这里画」，
-        // 空白处必须是十字准星。想拖区域先点灭工具。
-        if isSpacePressed, model.tool.annotationKind == nil {
+        if isSpacePressed, model.tool == .select {
             setCursor(.openHand)
             return
         }
@@ -825,6 +827,13 @@ struct MarkupCanvas: View {
         )))
     }
 
+    /// 写状态并立即 apply：`onChange` 只在值变化时触发，
+    /// 而「状态没变、屏幕上是别的值」这种情况必须也纠正一次。
+    private func setCursor(_ kind: PointerCursor) {
+        cursor = kind
+        kind.apply()
+    }
+
     private func hoveredAnnotation(
         at viewPoint: CGPoint,
         layout: EditorCanvasLayout
@@ -832,15 +841,6 @@ struct MarkupCanvas: View {
         guard layout.imageRect.contains(viewPoint) else { return nil }
         let point = clampedImagePoint(layout.imagePoint(viewPoint), layout: layout)
         return hitAnnotation(at: point, layout: layout)
-    }
-
-    /// 唯一的「改光标」入口：映射统一走 `PointerCursor`，不再散写 `NSCursor.xxx.set()`。
-    /// - Parameter force: 忽略相等性去重，强制重新 `set`。只在「指针离开」时用：
-    ///   那时必须真的写回箭头，而缓存里的值可能已经是箭头。
-    private func setCursor(_ kind: PointerCursor, force: Bool = false) {
-        guard force || cursor != kind else { return }
-        cursor = kind
-        kind.apply()
     }
 
     private func clampedImagePoint(

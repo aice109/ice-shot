@@ -28,11 +28,18 @@ struct SelectionOverlayView: View {
     /// 父层收不到事件，光标就卡住不跟手。
     @State private var latestPointer: CGPoint?
     /// 操作条的实测尺寸：宽度只用于把胶囊收进屏幕，不靠常量估算。
-    @State private var toolbarSize: CGSize = .zero
     @FocusState private var isFocused: Bool
 
     /// 操作条与屏幕边缘的最小间距。
     private static let toolbarMargin: CGFloat = 12
+    /// 浮层内部统一坐标系：操作条形与指针位置都在这个空间里比较。
+    private static let overlaySpace = "captureOverlay"
+
+    /// 操作条与选区边框之间的固定间隙。
+    ///
+    /// 必须大于 `SelectionCursorRule.edgeTolerance`（4 pt），否则工具条边缘会被算进
+    /// 边框缩放带；也要留得出手柄（10 pt 圆）的位置，否则下边框拖不动。
+    private static let toolbarGap: CGFloat = 14
 
     private var selection: CGRect {
         state.selection(for: frame.display.id)
@@ -71,9 +78,8 @@ struct SelectionOverlayView: View {
     /// 谁后执行谁生效：框选完成后指针没移动、hover 不再回调，十字准星就留在了
     /// 「已经没有任何可绘制动作」的屏幕上；指针离开选区后抓手也没人收回。
     /// 现在按 `SelectionCursorRule` 算出唯一答案，见该文件的光标优先序。
-    private var overlayCursor: PointerCursor {
-        // 编辑态且选区锁定（窗口 / 全屏 / 重复区域）：整屏只剩标注画布在接收鼠标，
-        // 光标由 `MarkupCanvas` 自己管，这里不表态（`declaresCursor` 会返回 false）。
+    private func overlayCursor(in bounds: CGRect) -> PointerCursor {
+        // 编辑态且选区锁定（窗口 / 全屏 / 重复区域）：选区调不动，光标没有可表达的东西。
         guard !isEditing || state.allowsAdjustment else {
             return .arrow
         }
@@ -86,10 +92,34 @@ struct SelectionOverlayView: View {
             isHoveringWindows: !isEditing && windows.count > 0 && !isSelectionVisible
                 && state.activeDisplayID == nil,
             isCreatingSelection: isCreatingSelection,
-            // 编辑态下把工具告诉规则：选中工具后选区内一律十字 / 文本 I，
-            // 边缘缩放让位。无工具态传 `nil`，行为不变。
+            isOverAnnotation: isOverAnnotation,
+            isMovingAnnotation: isMovingAnnotation,
+            isOverToolbar: isOverToolbar(in: bounds),
+            // 编辑态下把工具告诉规则：选中工具后选区内一律十字 / 文本 I。
             markupTool: currentMarkupTool
         ))
+    }
+
+    /// 指针是否落在操作条上（含两个胶囊之间的透明间隙）。
+    ///
+    /// 操作条是两个玻璃胶囊并排，中间那 10 pt 是透明的——视觉上「指针在界面上」，
+    /// 但两个胶囊的 `contentShape` 都不含它，只按胶囊判定就会漏。
+    ///
+    /// 矩形由「`toolbarPosition` 算出的中心点 + 实测尺寸」拼出：中心点与 `.position(...)`
+    /// 用的是**同一个函数**，两者不会各说各话。不用 `frame(in: .named(...))`——
+    /// 那条路在命名坐标空间没解析出来时会静默给 `.zero`，判定于是全 false，
+    /// 表现就是「工具条上穿过去仍是缩放，移出去才恢复」。
+    private func isOverToolbar(in bounds: CGRect) -> Bool {
+        guard isEditing, toolbarSize.width > 0, toolbarSize.height > 0 else { return false }
+        guard let point = pointerPosition else { return false }
+        let center = toolbarPosition(in: bounds)
+        let rect = CGRect(
+            x: center.x - toolbarSize.width / 2,
+            y: center.y - toolbarSize.height / 2,
+            width: toolbarSize.width,
+            height: toolbarSize.height
+        ).insetBy(dx: -2, dy: -2)
+        return rect.contains(point)
     }
 
 
@@ -116,25 +146,43 @@ struct SelectionOverlayView: View {
         return false
     }
 
-    /// 本视图要不要声明光标。
+    /// 画布是否正在拖动一条已有标注（由画布自己上报）。
+    @State private var isMovingAnnotation = false
+    /// 操作条的实测尺寸（含两胶囊之间的透明间隙）。
+    @State private var toolbarSize: CGSize = .zero
+
+    /// 指针是否落在**已有标注的实际可修改区域**上。
     ///
-    /// 编辑态且允许调范围时，选区**内部**铺着 `MarkupCanvas`，它自己会用
-    /// `NSCursor.set()` 设置光标（十字 / 抓手）。两边都表态就是互相覆盖：
-    /// 画布先算出抓手，外层再 apply 一次十字，最终看到的就是十字——
-    /// 真机上「移到已有图形上不出抓手」就是这个原因。
-    ///
-    /// 分工：**选区内**归画布，**选区外（含边缘手柄）**归这里。
-    private var declaresCursor: Bool {
-        guard isEditing, state.allowsAdjustment else { return true }
-        guard let point = pointerPosition else { return true }
-        // 指针在选区内：画布在管，别抢。
-        return !selection.contains(point)
+    /// 规则本身在 `EditorAnnotation.hitTest`（矩形只算描边、不算中间空白）；
+    /// 这里只负责把浮层坐标换算成原图像素再问一次。
+    private var isOverAnnotation: Bool {
+        guard isEditing, let editor, let point = pointerPosition else { return false }
+        let imageFrame = state.editorImageFrame
+        guard imageFrame.width > 0, imageFrame.height > 0 else { return false }
+        // **复用画布自己那套布局**，不另写一遍换算。
+        // 手写 scaleX/scaleY 只有在宽高比恰好匹配、且 origin 为零时才与画布一致；
+        // 一旦不匹配（多屏缩放比、非整数 scale），拾取位置就整体漂移，
+        // 表现为「明明在矩形边框上却没有抓手」。
+        let layout = EditorCanvasLayout(
+            imageSize: CGSize(width: editor.image.width, height: editor.image.height),
+            viewSize: imageFrame.size,
+            padding: 0
+        )
+        let viewPoint = CGPoint(x: point.x - imageFrame.minX, y: point.y - imageFrame.minY)
+        guard layout.imageRect.contains(viewPoint) else { return false }
+        let pixel = layout.imagePoint(viewPoint)
+        // 容差按当前缩放换算成屏幕约 7 pt，缩小时也不会「点不中」。
+        let tolerance = 7 / max(layout.scale, 0.01)
+        return editor.annotations.reversed().contains { $0.hitTest(pixel, tolerance: tolerance) }
     }
 
     /// 把工具态告诉 `SelectionCursorRule`：选中工具后，选区内一律落笔光标。
+    ///
+    /// 取字模式（系统 Live Text 选取图中文字）借用 `.text`：那一格的语义就是「这里能选字」，
+    /// 光标自然该是文本 I，不必在规则里再加一个并列分支。
     private var currentMarkupTool: EditorTool? {
         guard isEditing, let editor else { return nil }
-        return editor.tool
+        return editor.isTextPicking ? .text : editor.tool
     }
 
     /// 遮罩挖洞：框选中用选区，未框选时用悬停窗口。
@@ -204,6 +252,7 @@ struct SelectionOverlayView: View {
                     toolbar(bounds: bounds, editor: editor)
                 }
             }
+            .coordinateSpace(.named(Self.overlaySpace))
             .frame(width: proxy.size.width, height: proxy.size.height)
             .clipped()
             .focusable()
@@ -254,7 +303,11 @@ struct SelectionOverlayView: View {
             // 光标只在这里声明一次。`onContinuousHover` 只在指针移动时回调，所以
             // 框选完成、选区被清空、Space 状态变化都会经由 `latestPointer` / 状态变化
             // 触发重算——否则指针不动的时候，十字或抓手会永远留在屏幕上。
-            .pointerCursorIfPresent(declaresCursor ? overlayCursor : nil)
+            //
+            // 光标只在这里声明一次：`SelectionCursorRule` 是唯一算家，
+            // 覆盖操作条 / 暗区 / 边框 / 绘制区域 / 截图区域全部情况。
+            // 画布以 `managesCursor: false` 让出，不再各写一套全局 `NSCursor.set()`。
+            .pointerCursor(overlayCursor(in: bounds))
 
         }
     }
@@ -278,17 +331,14 @@ struct SelectionOverlayView: View {
                     width: selection.width,
                     height: selection.height
                 ),
-                // 图外（选区外）= 禁止：那里既不能画也不能选，按下没有结果。
-                // 选区边缘要留给缩放手柄，否则指针贴到手柄上还是禁止，看不出能缩放。
-                outerCursor: { point in
-                    SelectionCursorRule.axis(at: point, selection: selection) == nil
-                        ? .notAllowed
-                        : nil
-                },
                 onQuickCopy: { onAction(.copy) },
                 // Space 状态必须传给画布：它是选区内真正碰光标的那一层，
                 // 不告诉它，外层算好的抓手会被它盖成箭头（真机上就是这个现象）。
-                isSpacePressed: state.isSpacePressed
+                isSpacePressed: state.isSpacePressed,
+                // 光标由本视图外层独占（`SelectionCursorRule` 能同时看到选区 / 边框 /
+                // 暗区 / 操作条，画布只看得到图）。画布若也写全局光标就会互相覆盖。
+                managesCursor: false,
+                onMovingAnnotationChange: { isMovingAnnotation = $0 }
             )
             .frame(width: imageFrame.width, height: imageFrame.height)
             .offset(x: -offsetX, y: -offsetY)
@@ -345,22 +395,53 @@ struct SelectionOverlayView: View {
             }
     }
 
+    /// 选区缩放手柄。
+    ///
+    /// **命中区必须与光标提示一致**：`SelectionCursorRule` 在整个边带（含内侧几 pt）
+    /// 都显示缩放箭头，所以那一整条边都得能拖。以前只有 8 个 10 pt 圆点能拖，
+    /// 光标却在一整圈上提示「可以拉」——视觉承诺与实际行动对不上，
+    /// 真机手感就是「只有几个点能拉，还不灵敏」。
+    ///
+    /// 分两层：
+    /// - **命中层**：四条边各一个整边长的透明条，四角各一个小方块；角后声明、盖在边上面，
+    ///   于是角优先命中（与光标判定「角优先于边」一致）。
+    /// - **视觉层**：8 个白色圆点，`allowsHitTesting(false)`，只负责显示。
     private func resizeHandles(bounds: CGRect) -> some View {
-        ForEach(ResizeHandle.allCases) { handle in
-            ResizeHandleView(
-                handle: handle,
-                selection: selection,
-                onChanged: { raw in
-                    state.update(
-                        displayID: frame.display.id,
-                        rect: snapped(
-                            ScreenGeometry.clamped(raw, to: bounds),
-                            bounds: bounds
+        let corners = ResizeHandle.allCases.filter { $0.axis.isCorner }
+        let edges = ResizeHandle.allCases.filter { !$0.axis.isCorner }
+        return ZStack {
+            ForEach(edges) { handle in
+                ResizeHandleHitArea(
+                    handle: handle,
+                    selection: selection,
+                    onChanged: { raw in
+                        state.update(
+                            displayID: frame.display.id,
+                            rect: snapped(ScreenGeometry.clamped(raw, to: bounds), bounds: bounds)
                         )
-                    )
-                }
-            )
+                    }
+                )
+            }
+            ForEach(corners) { handle in
+                ResizeHandleHitArea(
+                    handle: handle,
+                    selection: selection,
+                    onChanged: { raw in
+                        state.update(
+                            displayID: frame.display.id,
+                            rect: snapped(ScreenGeometry.clamped(raw, to: bounds), bounds: bounds)
+                        )
+                    }
+                )
+            }
+            ForEach(ResizeHandle.allCases) { handle in
+                ResizeHandleDot(handle: handle, selection: selection)
+                    .allowsHitTesting(false)
+            }
         }
+        // 按住 Space = 明确要拖整个选区。命中层在 `spaceDragLayer` 之上，
+        // 不让位的话「光标显示抓手、按下去却在拉边框」，与光标判定打架。
+        .allowsHitTesting(!state.isSpacePressed)
     }
 
     private func selectionGesture(bounds: CGRect) -> some Gesture {
@@ -601,10 +682,30 @@ struct SelectionOverlayView: View {
     private func toolbarPosition(in bounds: CGRect) -> CGPoint {
         // 宽度取实测值：首帧还没量到就按 0 处理（无横向约束），下一帧再收进屏幕；
         // 用常量估算的话，工具增减、系统字号变化都会让估算失效。
-        let half = min(toolbarSize.width / 2, max(0, bounds.width / 2 - Self.toolbarMargin))
+        let size = toolbarSize
+        let half = min(size.width / 2, max(0, bounds.width / 2 - Self.toolbarMargin))
         let x = min(max(selection.midX, half), max(half, bounds.maxX - half))
-        let below = selection.maxY + 30
-        let y = below + 24 <= bounds.maxY ? below : max(24, selection.minY - 30)
+
+        // 纵向偏移必须按**工具栏实际高度**算，不能用固定值当中心偏移。
+        // 用固定 30 时，工具条高约 50+，上边缘就落在选区下边框附近：
+        //   1. 盖住下边框的缩放手柄 → 底部边框拖不动；
+        //   2. 与下边框之间只剩一条几 pt 的缝 → 指针在那儿既不算在工具条上
+        //      （`isOverToolbar` 判不到），又落进 `axis()` 的容差带 → 冒出一圈缩放图标。
+        // 现在保证工具条与选区之间恒定留出 `toolbarGap`，两者永不重叠。
+        // `toolbarSize` 首帧还是 `.zero`，此时拿它算偏移会把工具条直接压在选区下边框上
+        // （手柄被盖、边框拖不动）。用一个保守下限兜住首帧。
+        let halfHeight = max(size.height, 44) / 2
+        let below = selection.maxY + Self.toolbarGap + halfHeight
+        let above = selection.minY - Self.toolbarGap - halfHeight
+        let y: CGFloat
+        if below + halfHeight <= bounds.maxY {
+            y = below
+        } else if above - halfHeight >= 0 {
+            y = above
+        } else {
+            // 上下都放不下（选区几乎占满屏幕）：夹在屏内，至少不跑到屏幕外。
+            y = min(max(below, halfHeight), max(halfHeight, bounds.maxY - halfHeight))
+        }
         return CGPoint(x: x, y: y)
     }
 
@@ -654,7 +755,16 @@ struct SelectionOverlayView: View {
             showsCropTool: false
         )
         .fixedSize()
-        .onGeometryChange(for: CGSize.self) { $0.size } action: { toolbarSize = $0 }
+        // 只测**尺寸**（相对测量，不依赖任何坐标空间），位置仍由 `toolbarPosition` 决定。
+        // 用 `GeometryReader` + `onAppear`/`onChange` 双保险：`onGeometryChange` 在某些
+        // 布局下首帧不触发，尺寸留 0 会让命中判定整个失效。
+        .background(
+            GeometryReader { proxy in
+                Color.clear
+                    .onAppear { toolbarSize = proxy.size }
+                    .onChange(of: proxy.size) { _, size in toolbarSize = size }
+            }
+        )
         .position(toolbarPosition(in: bounds))
     }
 }
@@ -665,35 +775,75 @@ private enum Interaction {
     case moving(startRect: CGRect, startPoint: CGPoint)
 }
 
-/// 选区手柄：拖动时按 `SelectionGeometry` 计算新矩形，由父视图裁剪与像素对齐。
-///
-/// 光标由 `PointerCursor` 统一给出：悬停 = 该方向的缩放箭头，拖动中 = 同一箭头。
-/// 以前这里完全没有光标提示，用户悬停到手柄上看到的还是箭头，根本不知道能拖。
-private struct ResizeHandleView: View {
+/// 手柄的**视觉**圆点。只显示，不接收事件（命中由 `ResizeHandleHitArea` 负责）。
+private struct ResizeHandleDot: View {
     let handle: ResizeHandle
     let selection: CGRect
-    /// 拖拽过程中回调原始矩形（未裁剪）。
-    let onChanged: (CGRect) -> Void
-    @State private var startRect: CGRect?
-    @State private var isHovering = false
-    @State private var isDragging = false
 
     var body: some View {
         Circle()
             .fill(Color.white)
             .overlay {
-                Circle()
-                    .stroke(Color.accentColor, lineWidth: 1)
+                Circle().stroke(Color.accentColor, lineWidth: 1)
             }
             .frame(width: 10, height: 10)
-            .contentShape(Circle())
             .position(handle.position(in: selection))
-            .onHover { isHovering = $0 }
-            .pointerCursor(isHovering || isDragging ? .resizing(handle.axis) : .arrow)
+            .accessibilityHidden(true)
+    }
+}
+
+/// 手柄的**命中区**：整条边 / 整个角方块都能开始拖。
+///
+/// 尺寸与 `SelectionCursorRule` 的判定对齐——那里用 `edgeTolerance` 当角半径、
+/// `edgeBand` 当边带宽，这里用同一个半宽铺矩形，所以「显示缩放的地方」和
+/// 「能拖的地方」是同一块区域。
+private struct ResizeHandleHitArea: View {
+    let handle: ResizeHandle
+    let selection: CGRect
+    let onChanged: (CGRect) -> Void
+
+    @State private var startRect: CGRect?
+
+    private var hitRect: CGRect {
+        let half = SelectionCursorRule.edgeTolerance
+        switch handle {
+        case .topLeft:
+            return CGRect(x: selection.minX - half, y: selection.minY - half,
+                          width: half * 2, height: half * 2)
+        case .topRight:
+            return CGRect(x: selection.maxX - half, y: selection.minY - half,
+                          width: half * 2, height: half * 2)
+        case .bottomLeft:
+            return CGRect(x: selection.minX - half, y: selection.maxY - half,
+                          width: half * 2, height: half * 2)
+        case .bottomRight:
+            return CGRect(x: selection.maxX - half, y: selection.maxY - half,
+                          width: half * 2, height: half * 2)
+        case .top:
+            // 整条边都算，两端交给上层的角手柄（角优先）。
+            return CGRect(x: selection.minX, y: selection.minY - half,
+                          width: max(selection.width, half * 2), height: half * 2)
+        case .bottom:
+            return CGRect(x: selection.minX, y: selection.maxY - half,
+                          width: max(selection.width, half * 2), height: half * 2)
+        case .left:
+            return CGRect(x: selection.minX - half, y: selection.minY,
+                          width: half * 2, height: max(selection.height, half * 2))
+        case .right:
+            return CGRect(x: selection.maxX - half, y: selection.minY,
+                          width: half * 2, height: max(selection.height, half * 2))
+        }
+    }
+
+    var body: some View {
+        let rect = hitRect
+        Color.clear
+            .frame(width: rect.width, height: rect.height)
+            .contentShape(Rectangle())
+            .position(x: rect.midX, y: rect.midY)
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { value in
-                        isDragging = true
                         let start = startRect ?? selection
                         if startRect == nil {
                             startRect = start
@@ -714,7 +864,6 @@ private struct ResizeHandleView: View {
                     }
                     .onEnded { _ in
                         startRect = nil
-                        isDragging = false
                     }
             )
             .accessibilityLabel("调整选区")
