@@ -112,11 +112,28 @@ Features ──→ Core
 | 返回 `String` / 赋值 | `String(localized: "保存")` | 裸字面量不参与本地化，必须显式包 |
 
 **新增文案时一定要同步 `en.lproj/Localizable.strings`**——
-`LocalizationTests` 会把漏翻、译文残留中文、占位符数量不一致三类回归当失败。
+`LocalizationTests` 会把漏翻、译文残留中文、占位符数量不一致三类回归当失败，
+其中 `everyChineseLiteralIsTranslated` 扫源码里的中文 UI 字面量逐个对表，漏一条即红。
 
 插值字符串（`"已旋转 \(angle)°"`）目前不做本地化：
 `String(localized:)` 收的是 `LocalizationValue`，内嵌表达式和引号很容易写坏。
 真要本地化就先拆成 `%@` 占位 + `String(format:)`。
+
+### 语言切换：为什么不做运行时热切
+
+macOS 在**进程启动时**解析 `.lproj`，运行中改写 `AppleLanguages`
+不会让已加载的字符串表失效。
+
+理论上可以替换 `Bundle` 子类做运行时切换，但**系统菜单（File / Edit / Window）
+仍会跟随系统语言**——结果是中英混杂，比不切更糟。
+而本仓库刚花力气清掉的就是这种混杂。
+
+所以选择「写偏好 + 提示重启」：彻底、无混杂、与 macOS「语言与地区」机制一致。
+
+**判断用户选了哪个语言，不能看 `AppleLanguages` 是否存在**：
+`UserDefaults` 会回落到全局域，而全局域本来就存着系统写入的值（如 `zh-Hans-CN`），
+导致「跟随系统」被误判成「中文」。所以另用 `uiLanguageChoiceKey` 记显式选择，
+`AppleLanguages` 只当写入通道。
 
 ---
 

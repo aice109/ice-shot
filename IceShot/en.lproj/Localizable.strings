@@ -320,3 +320,13 @@
 "按下区域截图快捷键或从菜单栏开始截图。
 会自动保存到历史。" = "Press the region capture shortcut or start from the menu bar.
 Screenshots are saved to history automatically.";
+
+/* ---- 语言切换与设置补充 ---- */
+"界面语言" = "Language";
+"立即重启" = "Restart Now";
+"跟随系统" = "Follow System";
+"切换到「%@」需要重启 IceShot 才会生效。" = "Switching to “%@” takes effect after IceShot restarts.";
+"跟随系统时会使用 macOS「语言与地区」里的设置；也可在「系统设置 > 通用 > 语言与地区 > 应用程序」里单独指定 IceShot 的语言。" = "Follow System uses the settings in macOS Language & Region; you can also set IceShot's language individually in System Settings > General > Language & Region > Applications.";
+"菜单「截图 > 延时截图」倒计时结束后开始区域截图；倒计时期间可取消。" = "Capture > Delayed Capture starts a region capture after the countdown; you can cancel during the countdown.";
+"标注文字" = "Annotation text";
+"重复上次" = "Repeat Last";

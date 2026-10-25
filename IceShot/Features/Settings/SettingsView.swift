@@ -17,6 +17,13 @@ struct SettingsView: View {
     @Environment(\.openWindow) private var openWindow
     @State private var recorder = HotkeyRecorder()
     @State private var launchAtLogin = LaunchAtLoginModel()
+    /// 界面语言。启动时从实际偏好读一次，之后的变更直接写入 `AppleLanguages`。
+    @State private var languageChoice = LanguagePreferences.currentChoice()
+
+    /// 选的语言和当前跑的进程不是一个，就得重启才能看到效果。
+    private var languageNeedsRestart: Bool {
+        LanguagePreferences.needsRestart(choice: languageChoice)
+    }
 
     var body: some View {
         Form {
@@ -117,6 +124,13 @@ struct SettingsView: View {
         .onAppear {
             // 用户可能在系统设置里改过登录项，打开设置页时先对一次真实状态。
             launchAtLogin.refresh()
+            // 语言同理：系统设置里能单 App 指定语言，打开时以磁盘上的真实值为准。
+            languageChoice = LanguagePreferences.currentChoice()
+        }
+        .onChange(of: languageChoice) { _, newValue in
+            // macOS 在进程启动时解析 .lproj，所以这里只落盘，不期望界面立刻变。
+            // 是否变生效由 `languageNeedsRestart` 算出来，不一致就给重启按钮。
+            LanguagePreferences.apply(newValue)
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             // 从「系统设置 > 登录项」切回来时，开关要跟着系统的真实状态走。
@@ -133,9 +147,43 @@ struct SettingsView: View {
     }
 
     // MARK: - 通用
+
+    /// 界面语言。
+    ///
+    /// 切换后必须重启：macOS 在进程启动时解析 `.lproj`，运行中改写 `AppleLanguages`
+    /// 不会刷新已加载的字符串表。所以这里不假装热更新，而是直接明说并给重启按钮。
+    @ViewBuilder
+    private var languagePicker: some View {
+        Picker("界面语言", selection: $languageChoice) {
+            ForEach(LanguagePreferences.Choice.allCases) { choice in
+                Text(choice.displayName).tag(choice)
+            }
+        }
+
+        if languageNeedsRestart {
+            HStack {
+                Text("切换到「\(languageChoice.displayName)」需要重启 IceShot 才会生效。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer()
+                Button("立即重启") {
+                    AppRelauncher.relaunch()
+                }
+            }
+        } else {
+            Text("跟随系统时会使用 macOS「语言与地区」里的设置；也可在「系统设置 > 通用 > 语言与地区 > 应用程序」里单独指定 IceShot 的语言。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
     /// 开机自启动：开关值来自系统登录项状态，开启 / 关闭失败会回滚并给出原因。
     private var generalSection: some View {
         Section("通用") {
+            languagePicker
+
             Toggle(
                 String(localized: "开机时自动启动"),
                 isOn: Binding(
