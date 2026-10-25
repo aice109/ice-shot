@@ -29,6 +29,11 @@ enum PointerCursor: Equatable {
     case resize(ResizeAxis)
     /// 拖拽中已经「抓住」某个方向的手柄，松手前一直显示对应缩放箭头。
     case resizing(ResizeAxis)
+    /// 这里当前不可操作（系统「禁止」光标：箭头 + 🚫）。
+    ///
+    /// 用在「交互层的有效区域之外」——按下不会有任何结果的地方。
+    /// 与 `.arrow` 的区别：箭头是「没特别动作」，禁止是「明确不行」。
+    case notAllowed
 
     /// 实际的系统光标。
     var system: NSCursor {
@@ -41,6 +46,8 @@ enum PointerCursor: Equatable {
             return .closedHand
         case .crosshair:
             return .crosshair
+        case .notAllowed:
+            return .operationNotAllowed
         case .iBeam:
             return .iBeam
         case .move:
