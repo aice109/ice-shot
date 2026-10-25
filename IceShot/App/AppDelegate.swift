@@ -66,6 +66,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // 卡死取证的 watchdog：开关关闭时 `HangTrace` 整体是空操作；
+        // 测试宿主里也不启（测试会故意制造阻塞场景，写出的桩报告只会污染排查）。
+        if !isTestHost {
+            HangTrace.startWatchdog()
+        }
+
         // 测试宿主也会启动 App；不要在测试时弹欢迎框或注册全局快捷键。
         guard !isTestHost else {
             return

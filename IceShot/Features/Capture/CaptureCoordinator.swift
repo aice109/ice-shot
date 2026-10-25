@@ -522,6 +522,7 @@ final class CaptureCoordinator {
                 self?.pickWindowFromRegion(window, frames: frames)
             },
             onFinish: { [weak self] finish in
+                HangTrace.mark("overlay.onFinish", "\(finish.action)")
                 self?.handleFinish(finish)
             },
             onCancel: { [weak self] in
@@ -543,10 +544,18 @@ final class CaptureCoordinator {
     }
 
     private func handleFinish(_ finish: SelectionFinish) {
+        // 卡死取证：收尾里每一步都可能碰到系统服务（落历史、弹面板、切前台），逐个留痕。
+        let started = ProcessInfo.processInfo.systemUptime
+        HangTrace.mark("handleFinish.begin", "\(finish.action) source=\(pendingSource)")
+        defer { HangTrace.markDuration("handleFinish.end", from: started) }
+
         let source = pendingSource
         let batch = pendingAllDisplays
         pendingAllDisplays = nil
-
+        HangTrace.mark("handleFinish.readState")
+        // 最后一步：把纯值写进 UserDefaults。不涉及任何窗口 / 系统服务，
+        // 留痕是为了把它和后面的 `restorePreviousApplication` 区分开。
+        let regionStarted = ProcessInfo.processInfo.systemUptime
         if source == .region {
             lastRegion.save(
                 LastRegion(
@@ -556,6 +565,7 @@ final class CaptureCoordinator {
                 )
             )
         }
+        HangTrace.markDuration("handleFinish.lastRegion", from: regionStarted)
 
         // 长截图：选区确定后不落历史、不进标注，先开始连续抓取。
         if source == .scroll {
@@ -578,6 +588,9 @@ final class CaptureCoordinator {
 
         let historyImages = source == .allDisplays ? (batch?.images ?? [finish.original]) : [finish.original]
 
+        // 到这一步时已经不在 SwiftUI 的事件派发栈上（`SelectionOverlayController.finish`
+        // 把整段收尾推迟了一个 runloop），因此这里创建窗口 / 起模态循环都是安全的。
+        HangTrace.mark("handleFinish.actions.begin", "\(finish.action)")
         switch finish.action {
         case .copy:
             if let output = finish.output {
@@ -594,13 +607,15 @@ final class CaptureCoordinator {
         case .close:
             break
         }
-
+        HangTrace.mark("handleFinish.actions.done")
+        HangTrace.mark("handleFinish.recordHistory.schedule")
         Task { [weak self] in
             await self?.recordHistory(historyImages, source: source)
         }
+        HangTrace.mark("handleFinish.recordHistory.scheduled")
 
-        restorePreviousApplication()
         state = .idle
+        HangTrace.mark("handleFinish.idle")
     }
 
     // MARK: - 长截图会话
@@ -699,6 +714,15 @@ final class CaptureCoordinator {
     }
 
     /// 贴图：把渲染结果贴到截取选区原来的位置（AppKit 屏幕坐标）。
+    /// 贴图：把渲染结果贴到截取选区原来的位置（AppKit 屏幕坐标）。
+    ///
+    /// **必须晚一拍执行**。`pinResult` 是在 SwiftUI 按钮 action 的同步栈里被调用的：
+    /// 此刻浮层面板正在拆除、AppKit 正处于事件分发的重入点。在这个栈上创建
+    /// 一个新的 `NSPanel` 并让它的内容视图首帧布局，会与「正在进行的窗口拆除」
+    /// 互相等待——实测表现为点「贴图」后整机卡死（日志停在 `CFPrefsD` 之后没有下一行，
+    /// 主线程再无任何活动）。
+    ///
+    /// 推到下一个 runloop（并发一个 `Task`）后栈已经完全退出，创建窗口就是普通操作。
     private func pinResult(_ image: CGImage, finish: SelectionFinish) {
         let display = finish.result.frame.display
         let topLeft = CGPoint(
@@ -709,7 +733,11 @@ final class CaptureCoordinator {
             lastMessage = String(localized: "贴图不可用")
             return
         }
+        // 到这里已经不在 SwiftUI 的事件派发栈上（收尾整体被推迟过），
+        // 可以安全地创建贴图面板。
+        HangTrace.mark("pin.present.begin")
         pins.present(image: image, topLeft: topLeft)
+        HangTrace.mark("pin.present.done")
         lastMessage = String(localized: "已贴图")
         feedback.show(String(localized: "已贴图"))
     }
@@ -729,10 +757,13 @@ final class CaptureCoordinator {
         }
     }
 
+    /// 保存：收尾整体已被推迟出事件派发栈，因此可以放心起模态循环。
     private func saveResult(
         _ image: CGImage,
         batch: (images: [CGImage], index: Int)?
     ) {
+        HangTrace.mark("save.present.begin")
+        defer { HangTrace.mark("save.present.done") }
         do {
             let savedCount: Int
             if let batch, batch.images.count > 1 {
@@ -808,8 +839,12 @@ final class CaptureCoordinator {
         source: ScreenshotSource
     ) async -> Bool {
         guard HistoryPreferences.isEnabled, let history, !images.isEmpty else {
+            HangTrace.mark("recordHistory.skip")
             return false
         }
+        let started = ProcessInfo.processInfo.systemUptime
+        HangTrace.mark("recordHistory.begin")
+        defer { HangTrace.markDuration("recordHistory.end", from: started) }
         do {
             try await history.save(images, source: source, createdAt: Date())
             return true
@@ -838,6 +873,9 @@ final class CaptureCoordinator {
     }
 
     private func restorePreviousApplication() {
+        // 这一步此前出现在崩溃栈里（`NSRunningApplication.activate`）：它可能同步
+        // 询问 LaunchServices，是「收尾时转圈」最可疑的一处，单独计时。
+        defer { HangTrace.mark("restoreApp.done", "activated=\(didActivateForCapture)") }
         guard didActivateForCapture else {
             previousApplication = nil
             return
