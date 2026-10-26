@@ -62,14 +62,14 @@ struct DeviceFrameComposerTests {
         let content = try makeSolidImage(width: 1000, height: 600, gray: 1)
         let output = try DeviceFrameComposer.render(content, style: .default)
 
-        // 屏幕贴着上盖顶，刘海在屏幕顶部正中。
+        // 刘海在屏幕顶部正中。
         let centerX = output.width / 2
-        let notchProbeY = insetTop + 4
+        let notchProbeY = contentTop + 6
         let inNotch = try pixel(in: output, x: centerX, y: notchProbeY)
         #expect(inNotch.luminance < 40, "刘海位置应是黑色，实际亮度 \(inNotch.luminance)")
 
         // 同一行、远离刘海的位置应仍是内容的白。
-        let leftOfNotch = try pixel(in: output, x: centerX - 260, y: notchProbeY)
+        let leftOfNotch = try pixel(in: output, x: centerX - 220, y: notchProbeY)
         #expect(leftOfNotch.luminance > 200, "刘海外的内容不该被遮住")
     }
 
@@ -78,23 +78,34 @@ struct DeviceFrameComposerTests {
         let content = try makeSolidImage(width: 1000, height: 600, gray: 1)
         let output = try DeviceFrameComposer.render(content, style: .default)
 
-        // 越过刘海高度之后，屏幕正中应恢复成内容。
-        let y = insetTop + 13 + 12
+        // 越过刘海高度（24u）之后，屏幕正中应恢复成内容。
+        let y = contentTop + 24 + 12
         let below = try pixel(in: output, x: output.width / 2, y: y)
         #expect(below.luminance > 200, "刘海下方应该是内容，实际亮度 \(below.luminance)")
     }
 
-    @Test("屏幕四周是圆角矩形")
-    func screenHasRoundedCorners() throws {
+    @Test("屏幕只有上面两个角是圆角，下面两角是直角")
+    func screenIsRoundOnTopOnly() throws {
         let content = try makeSolidImage(width: 1000, height: 600, gray: 1)
         var style = DeviceFrameStyle.default
         style.background = .transparent
         style.showsShadow = false
         let output = try DeviceFrameComposer.render(content, style: style)
 
-        // 屏幕左上角：因为圆角，紧贴角落的位置应是背景（透明）。
-        let corner = try pixel(in: output, x: insetLeft, y: insetTop)
-        #expect(corner.alpha == 0, "屏幕顶部应是圆角")
+        // 屏幕（含黑边）区域：从 insetTop 起，高度 = 600 + 黑边 32。
+        let screenBottom = insetTop + 600 + 32
+
+        // 左上角：圆角，紧贴角落的位置应是**机身**或背景，而不是屏幕玻璃。
+        // 用「与屏幕中部玻璃同色」判断更稳：角落不应该是玻璃色。
+        let glassProbe = try pixel(in: output, x: output.width / 2, y: insetTop + 6)
+        let topLeft = try pixel(in: output, x: insetLeft + 1, y: insetTop + 1)
+        #expect(!topLeft.isNear(red: glassProbe.red, green: glassProbe.green, blue: glassProbe.blue, tolerance: 20),
+                "屏幕左上角应是圆角，不该是玻璃色")
+
+        // 左下角：直角，紧贴角落应是玻璃。
+        let bottomLeft = try pixel(in: output, x: insetLeft + 1, y: screenBottom - 2)
+        #expect(bottomLeft.isNear(red: glassProbe.red, green: glassProbe.green, blue: glassProbe.blue, tolerance: 20),
+                "屏幕左下角应是直角，紧贴角落就是玻璃")
     }
 
     @Test("底座比上盖宽，且在两块之间留出间隙")
@@ -142,13 +153,9 @@ struct DeviceFrameComposerTests {
         let silverOutput = try DeviceFrameComposer.render(content, style: silver)
         let grayOutput = try DeviceFrameComposer.render(content, style: gray)
 
-        // 取样点：上盖底部那条铝面（屏幕下缘与上盖底边之间）。
-        //
-        // 坐标来自实测：沿中线垂直扫描两幅图，银色在内容下方出现 211 的亮带、
-        // 深空灰同位置是 67，正是上盖下缘的铝面。这里用相对偏移表达，
-        // 几何若再调整，这个断言会先失败提醒重测。
-        let probeX = silverOutput.width / 2
-        let probeY = insetTop + 600 + 2
+        // 取样点：机身左侧直边中段。远离屏幕内容与圆角，两种配色都是金属面。
+        let probeX = insetLeft - 3
+        let probeY = silverOutput.height / 2
 
         let silverPixel = try pixel(in: silverOutput, x: probeX, y: probeY)
         let grayPixel = try pixel(in: grayOutput, x: probeX, y: probeY)
@@ -231,9 +238,11 @@ struct DeviceFrameComposerTests {
 
     // MARK: - 辅助
 
-    /// 屏幕内容区在输出图里的左上角（中留白 52u + 黑边 2u，u=1）。
-    private var insetTop: Int { 54 }
-    private var insetLeft: Int { 54 }
+    /// 屏幕（含黑边）在输出图里的左上角：中留白 52u + 机身边框 8u，u=1。
+    private var insetTop: Int { 60 }
+    private var insetLeft: Int { 60 }
+    /// 屏幕内容区左上角（再让出黑边 16u）。
+    private var contentTop: Int { 76 }
 
     private func makeSolidImage(width: Int, height: Int, gray: CGFloat) throws -> CGImage {
         let colorSpace = try #require(CGColorSpace(name: CGColorSpace.sRGB))
