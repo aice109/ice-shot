@@ -9,7 +9,7 @@
 
 ## 一、当前结论
 
-**M1、M2 已完成；M3–M4 未开始。**
+**M1、M2、M3 已完成；M4 未开始。**
 
 现在已经可以：
 
@@ -18,13 +18,14 @@
 - 预览使用与最终导出相同的 CoreGraphics 渲染器，先按选区裁剪再套壳；
 - **复制 / 保存 / 贴图输出带壳图**；关掉带壳后与原图逐像素一致；
 - 「全部显示器」批量保存时，各屏套同一个壳；
+- **选择样式（窗口 / 仅阴影）、外观、背景、边距、标题、阴影开关**，改完立即重绘预览；
+- **窗口来源的截图首次开启自动用「仅阴影」**，避免双层交通灯；
 - 历史库始终只存原图。
 
 现在**还不能**：
 
-- 选择仅阴影、外观、背景、边距、标题、阴影开关（M3）；
-- 记住上次样式（M4）；
-- 窗口来源的截图自动默认「仅阴影」（M3）。
+- 跨次记住上次样式（M4）。
+- 可选：`⌘B` 快速开关。
 
 ---
 
@@ -36,7 +37,7 @@
 | `IceShot/Core/Imaging/ScreenshotFramePalette.swift` | 固定内容色、交通灯颜色、背景渐变 |
 | `IceShot/Core/Imaging/ScreenshotFrameComposer.swift` | 纯 CoreGraphics / CoreText 渲染器，支持预览降采样 |
 | `IceShot/Core/Capture/OverlayPixelGeometry.swift` | 浮层选区 → 模型图像素的唯一换算，导出与预览共用 |
-| `IceShot/Features/Editor/ScreenshotFramePopover.swift` | 开关 + 预览 popover |
+| `IceShot/Features/Editor/ScreenshotFramePopover.swift` | 开关 + 全部样式控件 + 预览 popover |
 | `IceShot/Features/Editor/MarkupToolbar.swift` | 输出胶囊里的「带壳」按钮与 popover 状态 |
 | `IceShot/Features/Editor/MarkupToolbarLayout.swift` | 输出项 `.frame`，排在复制 / 保存之前 |
 | `IceShot/Features/Editor/EditorModel.swift` | `frameStyle` 状态与开关方法，不进入 `image` / 撤销栈 |
@@ -91,22 +92,24 @@
 
 ## 四、未完成工作
 
-### M3 · 样式选项（下一步）
+### M3 · 样式选项 ✅
 
-`ScreenshotFrameStyle` 和渲染器已经支持，但 popover 还没有对应控件。
-
-需要补：
+popover 现在是完整的样式面板：
 
 - 样式：窗口 / 仅阴影。
 - 外观：自动 / 浅色 / 深色。
 - 背景：透明 / 石墨 / 海蓝 / 晨曦 / 极光。
 - 边距：小 / 中 / 大。
-- 标题输入框，默认空。
+- 标题输入框，默认空（不自动填窗口标题）。
 - 阴影开关。
-- 参数变化后立即重绘预览，并同步到 `EditorModel.setFrameStyle`。
-- 窗口来源的截图首次开启时默认「仅阴影」，避免双层交通灯。
-  目前 `SelectionOverlayController` 不持有截图来源，需要把来源或默认样式传进编辑器。
-- 新增文案补 English，`LocalizationTests` 会卡住漏翻。
+- 每项改动写回 `EditorModel.setFrameStyle`，`task(id: model.frameStyle)` 立即重绘预览。
+- 窗口来源的截图默认「仅阴影」：`ScreenshotSource` 随 `SelectionOverlayController.present`
+  进 `Session`，再由 `EditorModel.applyDefaultFrameStyle(for:)` 落到默认样式；
+  用户手动改过就不会再被覆盖。切回「窗口」时 popover 会说明会出现双层交通灯。
+- 新增文案已补 English，`LocalizationTests` 通过。
+
+popover 宽度按**英文**文案定到 420 pt：
+五档背景英文全展约 321 pt，而 360 宽只剩 328 pt 可用，余量不足 7 pt，字重一变就截断。
 
 验收：逐项切换，popover 预览与最终复制 / 保存结果一致；窗口截图不会出现双层交通灯。
 
@@ -155,13 +158,16 @@ ICESHOT_HANG_TRACE=1 Scripts/gate.sh
 
 ## 六、下一步
 
-M2 已完成并通过门禁。下一步是 M3（样式选项），顺序建议：
+M3 已完成并通过门禁（Debug / Release 均零警告）。下一步是 M4（完整收尾）：
 
-1. popover 补控件：样式 / 外观 / 背景 / 边距 / 标题 / 阴影，全部同步到 `EditorModel.setFrameStyle`。
-2. 窗口来源的截图首次开启默认「仅阴影」：需把截图来源（`ScreenshotSource`）或默认样式
-   从 `CaptureCoordinator` 传进 `EditorModel`。
-3. 新增文案补 `en.lproj/Localizable.strings`，`LocalizationTests` 会卡住漏翻。
-4. 跑 `Scripts/gate.sh`，手工验收后提交，再进入 M4。
+1. 新增 `ScreenshotFramePreferences`：`UserDefaults` 记住**上次使用的样式**。
+   每次截图仍然默认关闭；开启时沿用上次样式。
+   `ScreenshotFrameStyle` 目前只有 `Hashable`，需补持久化能力——
+   建议在偏好层做原始值映射，避免给模型加 `Codable` 后再改样式就弄坏旧偏好。
+   注意与 M3 的「窗口来源默认仅阴影」共存：记住的样式优先，但窗口来源仍应避开双层交通灯。
+2. 更新 `docs/roadmap.md` 与本系列文档。
+3. 跑 `Scripts/gate.sh`，手工验收后提交。
+4. 可选：`⌘B` 快速开关。
 
 不变的底线：本地处理、只在用户主动触发时截取、不静默上传；不新增权限、不联网、
 不改 SwiftData 模型 / schema。

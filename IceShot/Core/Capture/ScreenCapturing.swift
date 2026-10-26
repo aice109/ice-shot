@@ -62,6 +62,8 @@ protocol SelectionOverlayPresenting {
     /// 冻结画面并进入选区 / 就地编辑。
     /// - Parameters:
     ///   - preset: 已有选区（窗口 / 全屏 / 全部显示器 / 重复上次区域），非空时直接进入编辑。
+    ///   - source: 本次截图来源。决定首次开启带壳时的默认样式
+    ///     （窗口图用「仅阴影」，避免导出双层交通灯）。
     ///   - windows: 可悬停 / 点击的窗口目录（按前到后排序）；空数组表示纯框选。
     ///   - onWindowPick: 在浮层里点击了高亮窗口时回调一次；抓窗口与进编辑由调用方完成。
     ///   - onFinish: 用户复制 / 保存 / 关闭时回调一次；原图始终回传用于写历史。
@@ -70,6 +72,7 @@ protocol SelectionOverlayPresenting {
     func present(
         frames: [DisplayFrame],
         preset: SelectionPreset?,
+        source: ScreenshotSource,
         autoEditOnSelection: Bool,
         windows: [WindowDescriptor],
         onWindowPick: @escaping (WindowDescriptor) -> Void,

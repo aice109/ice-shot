@@ -70,13 +70,32 @@ final class EditorModel {
 
     var isFrameEnabled: Bool { frameStyle != nil }
 
-    /// 开关带壳。开启时保留上次的详细样式；第一次开启用默认窗口壳。
+    /// 开关带壳。开启时保留上次的详细样式；第一次开启用 `defaultFrameStyle`。
     func setFrameEnabled(_ enabled: Bool) {
         if enabled {
-            frameStyle = frameStyle ?? .default
+            frameStyle = frameStyle ?? defaultFrameStyle
         } else {
             frameStyle = nil
         }
+    }
+
+    /// 第一次开启带壳时用的样式。
+    ///
+    /// 窗口来源的截图改成「仅阴影」：图里已经有自己的交通灯，
+    /// 再加一层窗口壳就会得到双层红黄绿。
+    private(set) var defaultFrameStyle: ScreenshotFrameStyle = .default
+
+    /// 告诉模型「这张图本来就是窗口截图」，首次开启带壳时用「仅阴影」。
+    ///
+    /// 只改**默认样式**，不动已经选好的 `frameStyle`：
+    /// 用户手动挑过的样式不该被来源偷偷换掉。
+    /// 因此它必须在第一次 `setFrameEnabled(true)` 之前调用——
+    /// 浮层里的调用点就是在新建模型之后、用户能点之前（见 `SelectionOverlayController.beginEditing`）。
+    func applyDefaultFrameStyle(for source: ScreenshotSource) {
+        guard source == .window, frameStyle == nil else { return }
+        var style = ScreenshotFrameStyle.default
+        style.chrome = .shadowOnly
+        defaultFrameStyle = style
     }
 
     /// 替换整套带壳样式；传 `nil` 等价于关闭。

@@ -4,8 +4,8 @@
 
 本文是设计与开发切片文档。实现进度按「最小可交付单元」推进，每一步都可单独验收。
 
-> **进度（2026-10-26）**：M1、M2 已完成；M3–M4 未开始。popover 预览与复制 / 保存 /
-> 贴图都已接入窗口壳，历史库仍只存原图。未完成事项与下一步见
+> **进度（2026-10-26）**：M1–M3 已完成；M4 未开始。popover 预览、全部样式选项与
+> 复制 / 保存 / 贴图都已接入窗口壳，历史库仍只存原图。未完成事项与下一步见
 > [screenshot-frame-todo.md](screenshot-frame-todo.md)。
 
 ---
@@ -164,11 +164,15 @@ u = clamp(内容宽 / 1000, 0.8, 2.0)
 
 验收：开启带壳后复制 / 保存 / 贴图，得到带壳图；关闭后得到原图。
 
-### M3 · 样式选项（未开始）
+### M3 · 样式选项 ✅
 
 - 外观、背景、边距、标题、阴影。
 - 仅阴影样式。
 - 窗口来源默认仅阴影。
+
+实现：全部控件写回 `EditorModel.setFrameStyle`，靠 `task(id: model.frameStyle)`
+重绘预览；窗口来源经 `SelectionOverlayController.present(source:)` →
+`Session.source` → `EditorModel.applyDefaultFrameStyle(for:)` 落到默认样式。
 
 验收：逐项切换，popover 预览与最终输出一致。
 

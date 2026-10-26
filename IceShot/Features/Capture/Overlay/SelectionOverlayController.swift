@@ -11,6 +11,8 @@ final class SelectionOverlayController: SelectionOverlayPresenting {
         let image: CGImage
         /// 区域截图允许在编辑态继续调整选区；预设选区锁定。
         let allowsAdjustment: Bool
+        /// 这张图从哪来。决定首次开启带壳时的默认样式（窗口图用「仅阴影」）。
+        let source: ScreenshotSource
     }
 
     private var panels: [CaptureOverlayPanel] = []
@@ -24,6 +26,8 @@ final class SelectionOverlayController: SelectionOverlayPresenting {
     private var windows: [WindowDescriptor] = []
     /// 松手后是否进入就地标注；长截图走 false（选区即抓取范围，直接开始采集）。
     private var autoEditOnSelection = true
+    /// 本次截图来源：与 `Session.source` 同源，只为让 `beginEditing` 拿得到。
+    private var source: ScreenshotSource = .region
     private var onCancel: (() -> Void)?
     /// 同一个 Esc 只处理一次：多层入口（监听 / SwiftUI / 窗口）都会调 `handleEscape()`。
     private var escapeGate = EscapeGate()
@@ -38,6 +42,7 @@ final class SelectionOverlayController: SelectionOverlayPresenting {
     func present(
         frames: [DisplayFrame],
         preset: SelectionPreset?,
+        source: ScreenshotSource,
         autoEditOnSelection: Bool = true,
         windows: [WindowDescriptor] = [],
         onWindowPick: @escaping (WindowDescriptor) -> Void,
@@ -52,6 +57,7 @@ final class SelectionOverlayController: SelectionOverlayPresenting {
         self.onFinish = onFinish
         self.onCancel = onCancel
         self.autoEditOnSelection = autoEditOnSelection
+        self.source = source
         self.windows = windows
         self.onWindowPick = onWindowPick
 
@@ -250,11 +256,15 @@ final class SelectionOverlayController: SelectionOverlayPresenting {
             displayFrame: frame,
             imageFrame: imageFrame,
             image: image,
-            allowsAdjustment: allowsAdjustment
+            allowsAdjustment: allowsAdjustment,
+            source: source
         )
         overlayState.update(displayID: displayID, rect: rect)
+        let editor = EditorModel(image: image, title: String(localized: "截图"))
+        // 窗口来源的图自带交通灯，默认改用「仅阴影」，避免导出时双层红黄绿。
+        editor.applyDefaultFrameStyle(for: source)
         overlayState.beginEditing(
-            editor: EditorModel(image: image, title: String(localized: "截图")),
+            editor: editor,
             imageFrame: imageFrame,
             allowsAdjustment: allowsAdjustment
         )

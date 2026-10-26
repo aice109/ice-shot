@@ -523,6 +523,7 @@ final class CaptureCoordinator {
         overlay.present(
             frames: frames,
             preset: preset,
+            source: source,
             autoEditOnSelection: source != .scroll,
             windows: windows,
             onWindowPick: { [weak self] window in

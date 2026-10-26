@@ -1,11 +1,14 @@
 import AppKit
 import SwiftUI
 
-/// 「带壳」popover：开关 + 实时预览。
+/// 「带壳」popover：开关 + 样式选项 + 实时预览。
 ///
 /// 预览和最终导出共用 `ScreenshotFrameComposer`，只是这里传 `maximumDimension` 做降采样。
-/// 第一版主画布不改成带壳显示：浮层里的选区、边框、手柄都绑定原图坐标，
+/// 主画布不改成带壳显示：浮层里的选区、边框、手柄都绑定原图坐标，
 /// 把壳画到选区外会和现有交互打架。
+///
+/// 控件沿用 `ToolOptionsPopover` 的语言：系统 `Picker`(.segmented) / `Toggle` / `TextField`，
+/// 不手绘弹窗，材质交给系统。
 struct ScreenshotFramePopover: View {
     let model: EditorModel
     /// 内容图（已渲染标注、浮层里还要先按选区裁剪）。为 nil 时无法生成预览。
@@ -14,6 +17,17 @@ struct ScreenshotFramePopover: View {
     @State private var preview: CGImage?
     @State private var isRendering = true
 
+    /// popover 宽度。
+    ///
+    /// 按**英文**文案算：五档背景（Transparent / Graphite / Ocean / Sunrise / Aurora）
+    /// 全屏时约 321 pt，360 宽的可用区只有 328 pt，只剩 7 pt 余量——
+    /// 系统字号或字重稍有变化就会被截断。留到 420，让两种语言都排得下。
+    private static let contentWidth: CGFloat = 420
+    /// 预览区高度。
+    private static let previewHeight: CGFloat = 200
+    /// 分组之间的留白。
+    private static let sectionSpacing: CGFloat = 12
+
     private var enabled: Binding<Bool> {
         Binding(
             get: { model.isFrameEnabled },
@@ -21,9 +35,9 @@ struct ScreenshotFramePopover: View {
         )
     }
 
-    private var statusText: String {
-        guard model.isFrameEnabled else { return String(localized: "未启用") }
-        return model.frameStyle?.chrome.title ?? String(localized: "窗口")
+    /// 当前样式；未开启时用默认值兜底，好让控件始终有值可显示。
+    private var style: ScreenshotFrameStyle {
+        model.frameStyle ?? model.defaultFrameStyle
     }
 
     private var hintText: String {
@@ -33,19 +47,15 @@ struct ScreenshotFramePopover: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 10) {
-                Toggle("带壳", isOn: enabled)
-                    .toggleStyle(.switch)
-
-                Spacer(minLength: 12)
-
-                Text(statusText)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+        VStack(alignment: .leading, spacing: Self.sectionSpacing) {
+            header
 
             previewArea
+
+            if model.isFrameEnabled {
+                Divider()
+                styleControls
+            }
 
             Text(hintText)
                 .font(.caption)
@@ -53,11 +63,28 @@ struct ScreenshotFramePopover: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(16)
-        .frame(width: 360)
+        .frame(width: Self.contentWidth)
         .task(id: model.frameStyle) {
             renderPreview()
         }
     }
+
+    // MARK: - 头部
+
+    private var header: some View {
+        HStack(spacing: 10) {
+            Toggle("带壳", isOn: enabled)
+                .toggleStyle(.switch)
+
+            Spacer(minLength: 12)
+
+            Text(model.isFrameEnabled ? style.chrome.title : String(localized: "未启用"))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    // MARK: - 预览
 
     private var previewArea: some View {
         ZStack {
@@ -79,7 +106,7 @@ struct ScreenshotFramePopover: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .frame(height: 220)
+        .frame(height: Self.previewHeight)
         .clipShape(RoundedRectangle(cornerRadius: 10))
         .overlay {
             RoundedRectangle(cornerRadius: 10)
@@ -92,6 +119,133 @@ struct ScreenshotFramePopover: View {
                 : String(localized: "原图预览")
         )
     }
+
+    // MARK: - 样式控件
+
+    private var styleControls: some View {
+        VStack(alignment: .leading, spacing: Self.sectionSpacing) {
+            labeledPicker(String(localized: "样式"), selection: chromeBinding) {
+                ForEach(ScreenshotFrameStyle.Chrome.allCases, id: \.self) { chrome in
+                    Text(chrome.title).tag(chrome)
+                }
+            }
+
+            // 窗口来源的图自带交通灯，切回「窗口」就是双层；给出原因，不让用户猜。
+            if style.chrome == .window, model.defaultFrameStyle.chrome == .shadowOnly {
+                Text("这张图本身是窗口截图，用「窗口」会出现双层交通灯。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            labeledPicker(String(localized: "外观"), selection: appearanceBinding) {
+                ForEach(ScreenshotFrameStyle.Appearance.allCases, id: \.self) { appearance in
+                    Text(appearance.title).tag(appearance)
+                }
+            }
+
+            labeledPicker(String(localized: "背景"), selection: backgroundBinding) {
+                ForEach(ScreenshotFrameStyle.Background.allCases, id: \.self) { background in
+                    Text(background.title).tag(background)
+                }
+            }
+
+            labeledPicker(String(localized: "边距"), selection: paddingBinding) {
+                ForEach(ScreenshotFrameStyle.Padding.allCases, id: \.self) { padding in
+                    Text(padding.title).tag(padding)
+                }
+            }
+
+            HStack(spacing: 10) {
+                Text("阴影")
+                Spacer(minLength: 12)
+                Toggle("阴影", isOn: shadowBinding)
+                    .toggleStyle(.switch)
+                    .labelsHidden()
+                    .accessibilityLabel("阴影")
+            }
+            .font(.callout)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("标题")
+                    .font(.callout)
+                // 默认空：不自动填窗口标题，避免把窗口标题里的隐私带进导出图。
+                TextField("可选，默认不显示", text: titleBinding)
+                    .textFieldStyle(.roundedBorder)
+                    .accessibilityLabel("标题")
+            }
+        }
+        .font(.callout)
+    }
+
+    /// 一行「标签 + 分段控件」。标签固定宽度，让四组分段控件左边对齐。
+    private func labeledPicker<Selection: Hashable, Content: View>(
+        _ title: String,
+        selection: Binding<Selection>,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.callout)
+            Picker(title, selection: selection, content: content)
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .accessibilityLabel(title)
+        }
+    }
+
+    // MARK: - 绑定（全部写回 `EditorModel.setFrameStyle`）
+
+    private var chromeBinding: Binding<ScreenshotFrameStyle.Chrome> {
+        Binding(
+            get: { style.chrome },
+            set: { value in updateStyle { $0.chrome = value } }
+        )
+    }
+
+    private var appearanceBinding: Binding<ScreenshotFrameStyle.Appearance> {
+        Binding(
+            get: { style.appearance },
+            set: { value in updateStyle { $0.appearance = value } }
+        )
+    }
+
+    private var backgroundBinding: Binding<ScreenshotFrameStyle.Background> {
+        Binding(
+            get: { style.background },
+            set: { value in updateStyle { $0.background = value } }
+        )
+    }
+
+    private var paddingBinding: Binding<ScreenshotFrameStyle.Padding> {
+        Binding(
+            get: { style.padding },
+            set: { value in updateStyle { $0.padding = value } }
+        )
+    }
+
+    private var shadowBinding: Binding<Bool> {
+        Binding(
+            get: { style.showsShadow },
+            set: { value in updateStyle { $0.showsShadow = value } }
+        )
+    }
+
+    private var titleBinding: Binding<String> {
+        Binding(
+            get: { style.title },
+            set: { value in updateStyle { $0.title = value } }
+        )
+    }
+
+    /// 改一项就整组写回：`task(id: model.frameStyle)` 因此会重绘预览。
+    private func updateStyle(_ mutate: (inout ScreenshotFrameStyle) -> Void) {
+        var updated = style
+        mutate(&updated)
+        model.setFrameStyle(updated)
+    }
+
+    // MARK: - 渲染
 
     private func renderPreview() {
         isRendering = true
