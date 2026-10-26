@@ -1,6 +1,8 @@
 import CoreGraphics
 
-enum ImageCropper {
+/// 纯 CoreGraphics 裁切，不碰 UI，也不持有任何状态。
+/// 标记 `nonisolated`：带壳渲染器（`ScreenshotFrameComposer`）也在非主 actor 上用它。
+nonisolated enum ImageCropper {
     /// 按图像左上原点的像素矩形裁切。
     ///
     /// 该约定已用 2×2 合成图验证：`CGImage.cropping(to:)` 的 (0,0) 对应图像左上角。

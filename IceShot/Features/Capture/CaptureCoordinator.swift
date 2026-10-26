@@ -611,7 +611,7 @@ final class CaptureCoordinator {
             }
         case .save:
             if let output = finish.output {
-                saveResult(output, batch: batch)
+                saveResult(output, batch: batch, frameStyle: finish.frameStyle)
             }
         case .pin:
             if let output = finish.output {
@@ -823,9 +823,13 @@ final class CaptureCoordinator {
     }
 
     /// 保存：收尾整体已被推迟出事件派发栈，因此可以放心起模态循环。
+    ///
+    /// 「全部显示器」时，浮层只处理了当前屏；其余屏在这里套**同一个壳**再一起存。
+    /// 历史库仍然只收原图（`handleFinish` 里的 `historyImages`）。
     private func saveResult(
         _ image: CGImage,
-        batch: (images: [CGImage], index: Int)?
+        batch: (images: [CGImage], index: Int)?,
+        frameStyle: ScreenshotFrameStyle?
     ) {
         HangTrace.mark("save.present.begin")
         defer { HangTrace.mark("save.present.done") }
@@ -834,6 +838,7 @@ final class CaptureCoordinator {
             if let batch, batch.images.count > 1 {
                 var images = batch.images
                 images[batch.index] = image
+                images = framedBatch(images, index: batch.index, style: frameStyle)
                 savedCount = try SavePanel.savePNGs(images)
             } else {
                 savedCount = try SavePanel.savePNG(image) ? 1 : 0
@@ -848,6 +853,27 @@ final class CaptureCoordinator {
             }
         } catch {
             state = .failed(message(for: error))
+        }
+    }
+
+    /// 给批量里的每一张图套同一个壳。
+    ///
+    /// 当前屏（`index`）已经在浮层里套过壳，**必须跳过**：再套一次就是壳外套壳，
+    /// 尺寸凭空再长一圈。这里只负责把其余屏补齐。
+    ///
+    /// - Parameters:
+    ///   - images: 已在 `index` 位置填好成品的整批图。
+    ///   - index: 已经带壳的那一张，不重复处理。
+    /// - Returns: 每张都带壳的整批图；无样式或套壳失败时原样返回对应项。
+    private func framedBatch(
+        _ images: [CGImage],
+        index: Int,
+        style: ScreenshotFrameStyle?
+    ) -> [CGImage] {
+        guard let style else { return images }
+        return images.enumerated().map { offset, image in
+            guard offset != index else { return image }
+            return (try? ScreenshotFrameComposer.render(image, style: style)) ?? image
         }
     }
 

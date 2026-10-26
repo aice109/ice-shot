@@ -503,7 +503,8 @@ final class SelectionOverlayController: SelectionOverlayPresenting {
                     result: result,
                     original: original,
                     output: output,
-                    action: action
+                    action: action,
+                    frameStyle: overlayState.editor?.frameStyle
                 )
             )
             HangTrace.mark("finish.callback.end", "\(action)")
@@ -515,16 +516,29 @@ final class SelectionOverlayController: SelectionOverlayPresenting {
         state: SelectionOverlayState,
         rect: CGRect
     ) -> CGImage? {
+        guard let pixelRect = pixelRect(for: session, rect: rect) else { return nil }
+        let style = state.editor?.frameStyle
+
         guard let editor = state.editor else {
-            return croppedImage(session, rect: rect)
+            // 没有编辑器模型：从冻结帧裁出选区，带壳时再套一层。
+            return try? ScreenshotFrameComposer.compose(
+                session.image,
+                cropRect: pixelRect,
+                style: style
+            )
         }
-        if editor.annotations.isEmpty {
-            return croppedImage(session, rect: rect)
-        }
-        guard let rendered = editor.renderedImage() else {
-            return croppedImage(session, rect: rect)
-        }
-        return cropPixels(of: rendered, session: session, rect: rect)
+
+        // 顺序固定：渲染标注 → 按选区裁剪 → 套壳。
+        // 裁剪必须带着 `pixelRect` 一起进去：不带的话壳会画在整张冻结帧上。
+        return editor.exportImage(
+            content: renderedContent(editor),
+            cropRect: pixelRect
+        )
+    }
+
+    /// 内容图（整图坐标，**不裁剪**）：有标注就渲染标注，没有就直接用原图。
+    private func renderedContent(_ editor: EditorModel) -> CGImage? {
+        editor.annotations.isEmpty ? editor.image : editor.renderedImage()
     }
 
     private func validSelection(_ state: SelectionOverlayState) -> CGRect? {
@@ -549,18 +563,6 @@ final class SelectionOverlayController: SelectionOverlayPresenting {
         guard let pixelRect = pixelRect(for: session, rect: rect) else { return nil }
         // 矩形已校验为 ≥1 px 且落在图像内，裁切失败只会是 Core Graphics 异常，按无结果处理。
         guard let cropped = try? ImageCropper.crop(session.image, to: pixelRect) else {
-            return nil
-        }
-        return cropped
-    }
-
-    private func cropPixels(
-        of image: CGImage,
-        session: Session,
-        rect: CGRect
-    ) -> CGImage? {
-        guard let pixelRect = pixelRect(for: session, rect: rect) else { return nil }
-        guard let cropped = try? ImageCropper.crop(image, to: pixelRect) else {
             return nil
         }
         return cropped

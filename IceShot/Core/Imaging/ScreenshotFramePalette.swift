@@ -4,7 +4,9 @@ import CoreGraphics
 ///
 /// 与标注色板同一条理由：这些颜色会烧进图片，必须稳定，
 /// 不能跟着 App 的浅色 / 深色模式或系统强调色变化。
-enum ScreenshotFramePalette {
+///
+/// 标记 `nonisolated`：渲染器（`ScreenshotFrameComposer`）也在非主 actor 上取色。
+nonisolated enum ScreenshotFramePalette {
     struct Theme {
         let titleBarTop: CGColor
         let titleBarBottom: CGColor

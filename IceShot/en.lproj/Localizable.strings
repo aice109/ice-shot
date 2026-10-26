@@ -375,6 +375,7 @@ Screenshots are saved to history automatically.";
 "未启用" = "Off";
 "无法生成预览" = "Preview unavailable";
 "当前为预览；复制 / 保存 / 贴图接入后会自动带上窗口壳。" = "Preview only; copy / save / pin will include the window frame once connected.";
+"已开启：复制 / 保存 / 贴图会带上这层壳；历史记录仍存原图。" = "On: copy / save / pin include this frame; history still stores the original.";
 "开启后按上次的样式生成预览。" = "Turn on to preview with your last used style.";
 "带壳已开启（点击调整）" = "Frame on (click to adjust)";
 "带壳：给截图加 macOS 窗口壳" = "Frame: wrap the screenshot in a macOS window";

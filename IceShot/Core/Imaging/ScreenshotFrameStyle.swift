@@ -5,7 +5,9 @@ import Foundation
 ///
 /// 壳是**导出图的一部分**，不是界面材质：颜色与几何必须固定，
 /// 不能随 App 的浅色 / 深色模式变化，否则同一张图每次导出结果都不一样。
-struct ScreenshotFrameStyle: Hashable, Sendable {
+///
+/// 标记 `nonisolated`：渲染器（`ScreenshotFrameComposer`）在非主 actor 上读它。
+nonisolated struct ScreenshotFrameStyle: Hashable, Sendable {
     /// 壳形态。
     enum Chrome: String, CaseIterable, Hashable, Sendable {
         /// macOS 窗口：标题栏 + 红黄绿交通灯 + 可选标题。

@@ -5,7 +5,9 @@ import Foundation
 /// 权限拒绝、显示器变化、窗口消失、编码 / 写入失败必须分开表达，
 /// 这样 UI 才能给出可执行的下一步（去授权 / 重选窗口 / 检查磁盘），
 /// 而不是一律提示「截图失败」。
-enum CaptureError: LocalizedError, Sendable {
+///
+/// 标记 `nonisolated`：纯 Core 类型（如 `ScreenshotFrameComposer`）会在非主 actor 上抛它。
+nonisolated enum CaptureError: LocalizedError, Sendable {
     /// 屏幕录制权限被拒绝或尚未生效。
     case permissionDenied
     case noDisplays

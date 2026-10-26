@@ -252,13 +252,13 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
 
     // MARK: - 输出
 
-    /// 贴图：把当前渲染结果（含标注）贴成置顶浮动窗口。
+    /// 贴图：把当前导出结果（标注 + 可选窗口壳）贴成置顶浮动窗口。
     private func pinAction() {
         guard let pins else {
             presentError(String(localized: "当前环境不支持贴图。"))
             return
         }
-        guard let image = model.renderedImage() else {
+        guard let image = model.exportImage() else {
             presentError(String(localized: "无法生成编辑后的截图。"))
             return
         }
@@ -267,7 +267,7 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
     }
 
     private func copyAction() {
-        guard let image = model.renderedImage() else {
+        guard let image = model.exportImage() else {
             presentError(String(localized: "无法生成编辑后的截图。"))
             return
         }
@@ -279,7 +279,7 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
     }
 
     private func saveAction() {
-        guard let image = model.renderedImage() else {
+        guard let image = model.exportImage() else {
             presentError(String(localized: "无法生成编辑后的截图。"))
             return
         }

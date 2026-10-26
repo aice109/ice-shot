@@ -28,7 +28,7 @@ struct ScreenshotFramePopover: View {
 
     private var hintText: String {
         model.isFrameEnabled
-            ? String(localized: "当前为预览；复制 / 保存 / 贴图接入后会自动带上窗口壳。")
+            ? String(localized: "已开启：复制 / 保存 / 贴图会带上这层壳；历史记录仍存原图。")
             : String(localized: "开启后按上次的样式生成预览。")
     }
 

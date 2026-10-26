@@ -706,6 +706,26 @@ final class EditorModel {
         return renderer.cgImage
     }
 
+    /// 导出图：复制 / 保存 / 贴图**只认这一个入口**。
+    ///
+    /// 顺序固定为「渲染标注 → 按选区裁剪 → 套壳」。`renderedImage()` 本身不改，
+    /// 画布、OCR、取字都还要用干净的内容图。
+    ///
+    /// - Parameters:
+    ///   - content: 已经算好的内容图；不传就现渲染一张。
+    ///   - cropRect: 要保留的像素矩形（图像坐标系、左上原点）。
+    ///     浮层传选区，编辑器窗口不传。
+    /// - Returns: 不带壳时**与裁剪结果逐像素一致**，不额外走一次重绘。
+    func exportImage(content: CGImage? = nil, cropRect: CGRect? = nil) -> CGImage? {
+        guard let content = content ?? renderedImage() else { return nil }
+        // 无壳无裁剪时 `compose` 直接返回 `content` 本身，不重绘。
+        return try? ScreenshotFrameComposer.compose(
+            content,
+            cropRect: cropRect,
+            style: frameStyle
+        )
+    }
+
     private func registerUndo(_ previousAnnotations: [EditorAnnotation], actionName: String) {
         // 图像也进快照：撤销裁剪时必须把图像一起还原，否则标注坐标会与新尺寸错位。
         registerUndo(

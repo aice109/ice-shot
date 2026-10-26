@@ -7,6 +7,41 @@ import Foundation
 /// 纯 CoreGraphics + CoreText，不依赖 SwiftUI，也不依赖 AppKit。
 /// 这样同一个渲染器可以同时服务 popover 预览和最终导出，不会出现「预览好看、导出不一样」。
 nonisolated enum ScreenshotFrameComposer {
+    /// 内容 → 成品的唯一出口：**先裁剪，后套壳**。
+    ///
+    /// 浮层、编辑器、批量保存都走这里，避免三处各写一遍顺序。
+    /// `style` 为 `nil` 时直接返回裁剪结果，**不多经过一次重绘**——
+    /// 「关闭带壳后与原图逐像素一致」靠的就是这条短路。
+    ///
+    /// - Parameters:
+    ///   - content: 已经渲染好标注、但**还没有按选区裁剪**的内容图。
+    ///   - cropRect: 要保留的像素矩形（左上原点，图像坐标系）；`nil` 表示不裁剪。
+    ///   - style: 壳样式；`nil` 表示不带壳。
+    ///   - maximumDimension: 预览用，见 `render(_:style:maximumDimension:)`。
+    static func compose(
+        _ content: CGImage,
+        cropRect: CGRect?,
+        style: ScreenshotFrameStyle?,
+        maximumDimension: Int? = nil
+    ) throws -> CGImage {
+        let cropped: CGImage?
+        if let cropRect {
+            cropped = try ImageCropper.crop(content, to: cropRect)
+        } else {
+            cropped = nil
+        }
+
+        guard let style else {
+            // 不带壳：裁剪了就返回裁剪结果，没裁剪就把传入的图原样交回去。
+            return cropped ?? content
+        }
+        return try render(
+            cropped ?? content,
+            style: style,
+            maximumDimension: maximumDimension
+        )
+    }
+
     /// - Parameters:
     ///   - content: 已经渲染好标注、并且**已经按选区裁剪**的内容图。
     ///   - style: 壳样式。

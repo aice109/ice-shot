@@ -25,6 +25,11 @@ struct SelectionFinish: Sendable {
     let original: CGImage
     let output: CGImage?
     let action: MarkupAction
+    /// 本次导出用的壳样式；`nil` 表示不带壳。
+    ///
+    /// 「全部显示器」批量保存时，其余屏要在协调器里套同一个壳，
+    /// 因此样式必须跟着收尾一起传出去，而不是在浮层里就烘进单一 `output`。
+    var frameStyle: ScreenshotFrameStyle?
 }
 
 @MainActor
