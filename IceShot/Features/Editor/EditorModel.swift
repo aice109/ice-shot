@@ -113,6 +113,15 @@ final class EditorModel {
     func setDeviceFinish(_ finish: DeviceFrameStyle.Finish) {
         deviceFinish = finish
         ScreenshotFramePreferences.saveDeviceFinish(finish, to: framePreferenceDefaults)
+        // 同步进当前样式：预览与导出都走 `compose(style:)`，
+        // 只改模型字段会让预览停在旧配色（曾经的 bug）。
+        if var active = frameStyle {
+            active.deviceFinish = finish
+            setFrameStyle(active)
+        }
+        if frameStyle == nil {
+            defaultFrameStyle.deviceFinish = finish
+        }
     }
 
     /// 告诉模型「这张图从哪来」，据此约束壳形态。
@@ -184,9 +193,7 @@ final class EditorModel {
     /// 导出图用的设备壳样式。从当前带壳样式推导（背景 / 边距 / 阴影沿用），
     /// 机身配色取模型自己的设置。
     var deviceFrameStyle: DeviceFrameStyle {
-        var style = DeviceFrameStyle.derived(from: frameStyle ?? defaultFrameStyle)
-        style.finish = deviceFinish
-        return style
+        DeviceFrameStyle.derived(from: frameStyle ?? defaultFrameStyle)
     }
 
     @ObservationIgnored var onToolChange: ((EditorTool) -> Void)?
@@ -217,8 +224,11 @@ final class EditorModel {
         self.image = image
         self.title = title
         self.framePreferenceDefaults = framePreferenceDefaults
-        self.defaultFrameStyle = ScreenshotFramePreferences.style(from: framePreferenceDefaults) ?? .default
-        self.deviceFinish = ScreenshotFramePreferences.deviceFinish(from: framePreferenceDefaults)
+        let rememberedFinish = ScreenshotFramePreferences.deviceFinish(from: framePreferenceDefaults)
+        var initialStyle = ScreenshotFramePreferences.style(from: framePreferenceDefaults) ?? .default
+        initialStyle.deviceFinish = rememberedFinish
+        self.defaultFrameStyle = initialStyle
+        self.deviceFinish = rememberedFinish
         // 上次开着带壳就仍开着；没开过（或上次手动关了）就是关的。
         if ScreenshotFramePreferences.isEnabled(from: framePreferenceDefaults) {
             self.frameStyle = defaultFrameStyle

@@ -19,17 +19,35 @@ nonisolated enum DeviceFrameComposer {
     /// 导出图里几乎看不见，成品像「一张图贴在白框里」而不是一台电脑。
     /// 所以黑边、刘海都适当放大，优先保证观感识别度。
     private enum Metrics {
-        /// 外机身圆角。真机外沿很圆，16u 在 1000px 内容上显得方。
-        static let bodyCornerRadius: CGFloat = 26
-        /// 屏幕圆角。比机身小一圈，但要保持同心观感（r_outer - rim）。
-        static let screenCornerRadius: CGFloat = 18
+        /// 外机身圆角。
+        ///
+        /// 真机外沿是很大的圆角（观感接近 40u）。这里取 42，配合 rim+bezel=20 的边框厚度，
+        /// 内角同心后仍有 22u——肉眼能看出屏幕顶部是圆的。
+        static let bodyCornerRadius: CGFloat = 42
+        /// 屏幕**顶部**圆角。真机只有上面两个角是圆的。
+        ///
+        /// 2021 起的 MacBook Pro 面板是「上圆下方」——顶部两角跟随刘海弧线收圆，
+        /// 底部两角是直角。这不是疏忽，而是实测确认的设计（见 notebookcheck 的实拍）。
+        /// 四角全圆会让成品一眼看出「不是真机」。
+        ///
+        /// 取值必须与外角**同心**：内角半径 = 外角半径 − 边框厚度（rim + bezel）。
+        /// 内角比这更小会露出一截「硬直角」，外圈却有弧度，看起来别扭。
+        static var screenCornerTop: CGFloat { bodyCornerRadius - bodyRim - bezel }
         /// 屏幕黑边（机身内沿到屏幕边）。
-        static let bezel: CGFloat = 16
+        ///
+        /// 真机侧黑边 3.4 mm，占可视宽约 1.15%，换算到 1000u 内容宽只有 11.5u。
+        /// 但按真值画，屏幕四角几乎没有可见的圆角弧度——机身大圆角会把内角整块包住。
+        /// 这里的取舍是**优先保证圆角读得出来**：
+        /// 黑边取 20u，配合外角 42u，内角同心后仍有 22u，屏幕顶部能清楚看出是圆的。
+        static let bezel: CGFloat = 20
         /// 机身边框（屏幕外沿到机身外沿）：让机身比屏幕大一圈，否则黑屏会盖满整块机身。
         static let bodyRim: CGFloat = 8
         /// 刘海宽 / 高。
-        static let notchWidth: CGFloat = 56
-        static let notchHeight: CGFloat = 16
+        ///
+        /// 实测（16" 默认 1728 pt 宽模式）：刘海 185×32 pt，占屏宽 10.71%。
+        /// 换算到 1000u 内容宽就是 107×19u。之前画 56u，只有真机的一半。
+        static let notchWidth: CGFloat = 107
+        static let notchHeight: CGFloat = 19
         /// 下巴（屏幕下沿到机身下沿）。
         static let chin: CGFloat = 22
     }
@@ -188,11 +206,12 @@ nonisolated enum DeviceFrameComposer {
         context.restoreGState()
 
         // 4. 屏幕底（黑边区域）+ 内容
-        let screenPath = CGPath(
-            roundedRect: flipped(screenRect),
-            cornerWidth: Metrics.screenCornerRadius * scale,
-            cornerHeight: Metrics.screenCornerRadius * scale,
-            transform: nil
+        //
+        //    屏幕用「上圆下方」路径：真机面板顶部两角圆、底部两角直角。
+        //    这是 2021 起 MacBook Pro 的真实特征，四角全圆会被一眼看出不像真机。
+        let screenPath = topRoundedPath(
+            flipped(screenRect),
+            topRadius: Metrics.screenCornerTop * scale
         )
         // 屏幕玻璃底：真机关屏时是极深的灰，不是纯黑；纯黑会让边界过于生硬。
         context.saveGState()
@@ -227,10 +246,12 @@ nonisolated enum DeviceFrameComposer {
         // 两个下角用三次贝塞尔，比二次曲线更接近连续的曲率过渡；
         // 四角再加一点点外圆角，避免两条边在屏幕上沿交接处出现尖角。
         let nRect = flipped(notchRect)
-        // 下角圆角半径：约等于刘海高度，真机的角接近半圆。
-        let corner = notchHeight * fit * 0.62
-        // 上角只收一点点，让刘海和黑边接缝不出现硬直角。
-        let topCorner = min(2.5 * scale, corner * 0.4)
+        // 真机刘海是一个「挖孔」：两侧下角以接近半圆的半径收进去（半径 ≈ 高度），
+        // 与屏幕顶边的两个上角同样有小圆角。整体读起来像一颗圆润的耳朵，
+        // 而不是一块方形的黑标签。
+        let corner = notchHeight * fit * 0.92
+        // 上角也做成可见的圆角，避免与屏幕边沿形成硬直角。
+        let topCorner = min(notchHeight * fit * 0.35, corner * 0.5)
         // 三次贝塞尔近似 1/4 圆的控制点系数。
         let k: CGFloat = 0.5523
 
@@ -299,11 +320,9 @@ nonisolated enum DeviceFrameComposer {
         // 内沿阴影：贴着屏幕（黑边区）外圈压一道暗边，把屏幕「嵌」进机身。
         context.saveGState()
         let screenFrame = screenRect.insetBy(dx: -1.2 * scale, dy: -1.2 * scale)
-        let innerPath = CGPath(
-            roundedRect: flipped(screenFrame),
-            cornerWidth: Metrics.screenCornerRadius * scale + 1.2 * scale,
-            cornerHeight: Metrics.screenCornerRadius * scale + 1.2 * scale,
-            transform: nil
+        let innerPath = topRoundedPath(
+            flipped(screenFrame),
+            topRadius: Metrics.screenCornerTop * scale + 1.2 * scale
         )
         context.addPath(innerPath)
         context.setStrokeColor(palette.innerShade)
@@ -360,6 +379,37 @@ nonisolated enum DeviceFrameComposer {
                 glass: color(0x0E0F11)
             )
         }
+    }
+
+    /// 顶部两角为圆角、底部两角为直角的矩形路径。
+    ///
+    /// 用 squircles 的思路但不追求精确超椭圆：三次贝塞尔（0.5523 系数）已经足够接近，
+    /// 而且在 1000u 这种尺寸下与真机的差别不可见。
+    private static func topRoundedPath(_ rect: CGRect, topRadius radius: CGFloat) -> CGPath {
+        let r = min(radius, min(rect.width, rect.height) / 2)
+        let k: CGFloat = 0.5523
+        let path = CGMutablePath()
+        // 左下（直角）
+        path.move(to: CGPoint(x: rect.minX, y: rect.minY))
+        // 左上圆角
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY - r))
+        path.addCurve(
+            to: CGPoint(x: rect.minX + r, y: rect.maxY),
+            control1: CGPoint(x: rect.minX, y: rect.maxY - r * (1 - k)),
+            control2: CGPoint(x: rect.minX + r * (1 - k), y: rect.maxY)
+        )
+        // 上边
+        path.addLine(to: CGPoint(x: rect.maxX - r, y: rect.maxY))
+        // 右上圆角
+        path.addCurve(
+            to: CGPoint(x: rect.maxX, y: rect.maxY - r),
+            control1: CGPoint(x: rect.maxX - r * (1 - k), y: rect.maxY),
+            control2: CGPoint(x: rect.maxX, y: rect.maxY - r * (1 - k))
+        )
+        // 右边下行到右下（直角）
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+        path.closeSubpath()
+        return path
     }
 
     /// 四点竖直渐变，做出阳极氧化铝的柔和受光。

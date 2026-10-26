@@ -114,6 +114,11 @@ nonisolated struct ScreenshotFrameStyle: Hashable, Sendable {
     }
 
     var chrome: Chrome = .window
+    /// 设备壳的机身配色。只对 `.macbook` 有意义。
+    ///
+    /// 放在这里而不是只存在 `EditorModel` 里：预览与导出都经过 `compose(style:)`，
+    /// 如果机身配色不当成样式的一部分，就会出现「改了机身但预览不变」。
+    var deviceFinish: DeviceFrameStyle.Finish = .silver
     var appearance: Appearance = .automatic
     var background: Background = .transparent
     var padding: Padding = .medium

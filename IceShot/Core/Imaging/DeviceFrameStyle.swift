@@ -89,6 +89,7 @@ nonisolated struct DeviceFrameStyle: Hashable, Sendable {
         style.background = Background(rawValue: frame.background.rawValue) ?? .graphite
         style.padding = Padding(rawValue: frame.padding.rawValue) ?? .medium
         style.showsShadow = frame.showsShadow
+        style.finish = frame.deviceFinish
         return style
     }
 }

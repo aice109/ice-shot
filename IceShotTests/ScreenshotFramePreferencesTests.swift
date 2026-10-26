@@ -365,6 +365,38 @@ struct ScreenshotFramePreferencesTests {
         #expect(model.deviceFrameStyle.background.rawValue == (model.frameStyle?.background ?? .graphite).rawValue)
     }
 
+    @Test("切机身配色会同步进样式，预览才能跟着变")
+    func switchingFinishUpdatesStyle() throws {
+        let model = EditorModel(
+            image: try makeImage(),
+            title: "测试",
+            framePreferenceDefaults: isolatedDefaults()
+        )
+        model.applyDefaultFrameStyle(for: .display)
+        model.setFrameEnabled(true)
+        #expect(model.deviceFrameStyle.finish == .silver)
+
+        // 预览与导出都走 compose(style:)，所以机身配色必须是样式的一部分。
+        model.setDeviceFinish(.spaceGray)
+        #expect(model.frameStyle?.deviceFinish == .spaceGray)
+        #expect(model.deviceFrameStyle.finish == .spaceGray)
+    }
+
+    @Test("未开启带壳时切机身配色，下次开启仍生效")
+    func switchingFinishWhileDisabledAppliesLater() throws {
+        let model = EditorModel(
+            image: try makeImage(),
+            title: "测试",
+            framePreferenceDefaults: isolatedDefaults()
+        )
+        model.applyDefaultFrameStyle(for: .display)
+        // 此刻带壳是关的。
+        model.setDeviceFinish(.spaceGray)
+        model.setFrameEnabled(true)
+
+        #expect(model.deviceFrameStyle.finish == .spaceGray)
+    }
+
     @Test("清空偏好会一并清掉机身配色")
     func clearRemovesDeviceFinish() {
         let defaults = isolatedDefaults()
