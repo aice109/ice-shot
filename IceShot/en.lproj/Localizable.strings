@@ -130,8 +130,8 @@
 "正在识别…" = "Recognizing…";
 "添加颜色" = "Add Color";
 "点「录制」后按下新组合；Delete 清除，Esc 取消。功能键可单独使用，其它键至少需要 ⌘ / ⌃ / ⌥ 之一。" = "Click Record, then press the new combination; Delete clears it, Esc cancels. Function keys may be used alone; other keys need at least one of ⌘ / ⌃ / ⌥.";
-"点击窗口截图 · 拖拽框选区域 · Esc 取消" = "Click a window to capture · drag to select a region · Esc to cancel";
-"点击选择窗口 · Esc 取消" = "Click to select a window · Esc to cancel";
+"点击窗口截图 · 拖拽框选区域 · 右键 / Esc 取消" = "Click a window to capture · drag to select a region · right-click or Esc to cancel";
+"点击选择窗口 · 右键 / Esc 取消" = "Click to select a window · right-click or Esc to cancel";
 "点按复制%@内容" = "Click to copy %@ content";
 "版本" = "Version";
 "状态" = "Status";

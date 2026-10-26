@@ -121,6 +121,10 @@ final class SelectionOverlayController: SelectionOverlayPresenting {
             panel.onTextPickingEscape = { [weak self] in
                 self?.exitTextPickingIfNeeded() ?? false
             }
+            // 右键与 Esc 完全同义：先退模式，再关 / 取消截图。
+            panel.onRightClick = { [weak self] in
+                _ = self?.handleEscape()
+            }
             // 指针位置由面板级监视器实时上报：不依赖 SwiftUI hover 的追踪区，
             // 指针停在手柄 / 工具条 / 层间空隙上也能正常跟手（见 `CaptureOverlayPanel`）。
             let displayID = frame.display.id
@@ -182,6 +186,7 @@ final class SelectionOverlayController: SelectionOverlayPresenting {
             panel.onPointerMoved = nil
             panel.onCancelOperation = nil
             panel.onTextPickingEscape = nil
+            panel.onRightClick = nil
             panel.orderOut(nil)
             panel.close()
             panel.contentView = nil

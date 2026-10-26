@@ -15,6 +15,14 @@ final class CaptureOverlayPanel: NSPanel {
     /// 只在取字模式生效——行内文字编辑器的 Esc 要留给它自己取消，不能被这里抢走。
     var onTextPickingEscape: (() -> Bool)?
 
+    /// 右键退出截图。由控制器注入，语义与 Esc 完全一致：
+    /// 选区阶段取消整次截图；标注阶段关闭浮层（原图仍进历史）。
+    ///
+    /// 在 `sendEvent` 里拦截，而不是重写 `rightMouseDown`：右键落在画布 / 工具条等
+    /// SwiftUI 子视图上时，事件可能先被子视图消费，窗口级重写就会漏掉，
+    /// 表现成「有些位置右键没反应」。
+    var onRightClick: (() -> Void)?
+
     /// 只有协调器真正收尾（`dismiss()`）时才允许关闭。
     ///
     /// **开关的是「用户发起的关闭」（`performClose:`，Esc 与关窗手势会走到这里），
@@ -73,6 +81,16 @@ final class CaptureOverlayPanel: NSPanel {
 
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
+
+    override func sendEvent(_ event: NSEvent) {
+        // 右键统一退出，不进入任何子视图的上下文菜单。
+        // 与 Esc 一样由控制器判定「取消整次截图 / 关闭标注浮层」。
+        if event.type == .rightMouseDown, let onRightClick {
+            onRightClick()
+            return
+        }
+        super.sendEvent(event)
+    }
 
     override func performClose(_ sender: Any?) {
         HangTrace.mark("panel.performClose", "allowsClose=\(allowsClose)")

@@ -93,6 +93,10 @@ final class WindowSelectionOverlayController: WindowSelectionOverlayPresenting {
             panel.animationBehavior = .none
             panel.becomesKeyOnlyIfNeeded = false
             panel.isReleasedWhenClosed = false
+            // 右键与 Esc 同义：取消这次窗口选择。
+            panel.onRightClick = { [weak self] in
+                self?.cancel()
+            }
             panel.contentView = FirstMouseHostingView(rootView: AnyView(view))
             panel.setFrame(frame.display.appKitFrame, display: true)
             panel.orderFrontRegardless()
@@ -112,6 +116,7 @@ final class WindowSelectionOverlayController: WindowSelectionOverlayPresenting {
 
     func dismiss() {
         for panel in panels {
+            panel.onRightClick = nil
             panel.orderOut(nil)
             panel.close()
             panel.contentView = nil

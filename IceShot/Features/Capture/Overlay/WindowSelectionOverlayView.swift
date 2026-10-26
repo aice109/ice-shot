@@ -4,7 +4,7 @@ import SwiftUI
 /// 单块屏幕上的窗口选择浮层。
 ///
 /// 显示冻结帧 + 压暗遮罩，鼠标悬停时高亮窗口并显示窗口名；
-/// 点击或 Return 确认，Esc 取消。每块屏幕一个实例，悬停状态由共享的
+/// 点击或 Return 确认，右键 / Esc 取消。每块屏幕一个实例，悬停状态由共享的
 /// `WindowHoverState` 同步，避免多屏之间出现两个高亮。
 struct WindowSelectionOverlayView: View {
     let frame: DisplayFrame
@@ -59,7 +59,7 @@ struct WindowSelectionOverlayView: View {
 
                 VStack {
                     Spacer()
-                    Text("点击选择窗口 · Esc 取消")
+                    Text("点击选择窗口 · 右键 / Esc 取消")
                         .font(.caption)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 7)

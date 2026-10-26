@@ -712,7 +712,7 @@ struct SelectionOverlayView: View {
     private func hoverHint(bounds: CGRect) -> some View {
         VStack {
             Spacer()
-            Text("点击窗口截图 · 拖拽框选区域 · Esc 取消")
+            Text("点击窗口截图 · 拖拽框选区域 · 右键 / Esc 取消")
                 .font(.caption)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 7)
