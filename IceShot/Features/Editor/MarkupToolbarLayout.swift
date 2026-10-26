@@ -69,10 +69,12 @@ enum MarkupToolbarLayout {
         case selectedOptions
     }
 
-    /// 输出胶囊里的一格：撤销 → 重做 → 复制 → 保存 → 贴图 → 关闭。
+    /// 输出胶囊里的一格：撤销 → 重做 → 带壳 → 复制 → 保存 → 贴图 → 关闭。
     enum OutputItem: Equatable, Sendable {
         case undo
         case redo
+        /// 带壳：只影响导出，不是标注工具。
+        case frame
         case copy
         case save
         case pin
@@ -99,7 +101,7 @@ enum MarkupToolbarLayout {
     ]
 
     /// 输出胶囊的内容顺序。
-    static let actionCluster: [OutputItem] = [.undo, .redo, .copy, .save, .pin, .close]
+    static let actionCluster: [OutputItem] = [.undo, .redo, .frame, .copy, .save, .pin, .close]
 
     /// 工具胶囊里独占一格的工具（按展示顺序，浮层不含裁剪）。
     static func tools(showsCropTool: Bool) -> [EditorTool] {

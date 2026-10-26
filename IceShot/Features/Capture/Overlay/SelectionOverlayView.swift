@@ -348,6 +348,23 @@ struct SelectionOverlayView: View {
         .position(x: selection.midX, y: selection.midY)
     }
 
+    /// 带壳预览的内容图：先渲染标注（无标注时直接用原图），再按当前选区裁剪。
+    ///
+    /// 与 `SelectionOverlayController.outputImage` 同一条顺序：**先裁剪，后套壳**。
+    private func framePreviewContent() -> CGImage? {
+        guard let editor = state.editor else { return nil }
+        let rendered = editor.annotations.isEmpty ? editor.image : editor.renderedImage()
+        guard let rendered else { return nil }
+        guard let pixelRect = OverlayPixelGeometry.pixelRect(
+            selection: selection,
+            imageFrame: state.editorImageFrame,
+            imageSize: CGSize(width: editor.image.width, height: editor.image.height)
+        ) else {
+            return nil
+        }
+        return try? ImageCropper.crop(rendered, to: pixelRect)
+    }
+
     private var isSelectionVisible: Bool {
         selection.width > 0 && selection.height > 0
     }
@@ -752,7 +769,9 @@ struct SelectionOverlayView: View {
                 close: { onAction(.close) }
             ),
             // 就地浮层的选区本身就是裁剪范围，再裁一次会让选区与图像坐标错位。
-            showsCropTool: false
+            showsCropTool: false,
+            // 带壳预览要看到「选区裁好之后」的内容，不是整块冻结帧。
+            frameContent: { framePreviewContent() }
         )
         .fixedSize()
         // 只测**尺寸**（相对测量，不依赖任何坐标空间），位置仍由 `toolbarPosition` 决定。

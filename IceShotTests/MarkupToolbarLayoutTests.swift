@@ -114,14 +114,24 @@ struct MarkupToolbarLayoutTests {
         }
     }
 
-    @Test("输出组五项固定顺序：撤销 / 重做 / 复制 / 保存 / 贴图")
-    func actionOrderIsStable() {
+    @Test("输出组固定顺序：撤销 / 重做 / 带壳 / 复制 / 保存 / 贴图")
+    func actionOrderIsStable() throws {
         for context in [MarkupToolbarLayout.Context.overlay, .editor] {
             let items = MarkupToolbarLayout.outputItems(in: context)
             let expected = MarkupToolbarLayout.actionCluster.filter {
                 $0 != .close || context == .overlay
             }
             #expect(items == expected)
+        }
+
+        // 带壳是输出前的设置，必须排在复制 / 保存之前，两个入口都一样。
+        for context in [MarkupToolbarLayout.Context.overlay, .editor] {
+            let items = MarkupToolbarLayout.outputItems(in: context)
+            let frameIndex = try #require(items.firstIndex(of: .frame))
+            let copyIndex = try #require(items.firstIndex(of: .copy))
+            let saveIndex = try #require(items.firstIndex(of: .save))
+            #expect(frameIndex < copyIndex)
+            #expect(frameIndex < saveIndex)
         }
     }
 

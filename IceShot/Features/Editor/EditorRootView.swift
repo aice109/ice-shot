@@ -21,7 +21,8 @@ struct EditorRootView: View {
             MarkupToolbar(
                 model: model,
                 context: .editor,
-                actions: actions
+                actions: actions,
+                frameContent: { model.renderedImage() }
             )
             .padding(.horizontal, 16)
             .padding(.vertical, 10)

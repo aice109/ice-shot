@@ -356,3 +356,27 @@ Screenshots are saved to history automatically.";
 "先复现一次卡死，或直接用屏幕截图工具把现象拍下来。" = "Reproduce the hang once first, or capture the symptom with a screenshot tool.";
 "已导出诊断文件" = "Diagnostics exported";
 "导出失败" = "Export failed";
+
+/* ---- 截图带壳 ---- */
+"带壳" = "Frame";
+"窗口" = "Window";
+"仅阴影" = "Shadow Only";
+"自动" = "Auto";
+"浅色" = "Light";
+"深色" = "Dark";
+"透明" = "Transparent";
+"石墨" = "Graphite";
+"海蓝" = "Ocean";
+"晨曦" = "Sunrise";
+"极光" = "Aurora";
+"小" = "Small";
+"中" = "Medium";
+"大" = "Large";
+"未启用" = "Off";
+"无法生成预览" = "Preview unavailable";
+"当前为预览；复制 / 保存 / 贴图接入后会自动带上窗口壳。" = "Preview only; copy / save / pin will include the window frame once connected.";
+"开启后按上次的样式生成预览。" = "Turn on to preview with your last used style.";
+"带壳已开启（点击调整）" = "Frame on (click to adjust)";
+"带壳：给截图加 macOS 窗口壳" = "Frame: wrap the screenshot in a macOS window";
+"带壳预览" = "Framed preview";
+"原图预览" = "Original preview";

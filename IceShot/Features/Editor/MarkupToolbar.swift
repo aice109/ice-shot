@@ -23,6 +23,8 @@ struct MarkupToolbar: View {
     var showsCropTool: Bool = true
     /// 底部是否带一条分隔线与状态栏（编辑器窗口用）。
     var showsStatusBar: Bool = false
+    /// 「带壳」预览的内容图。编辑器窗口给整张标注结果；浮层要先按选区裁剪。
+    var frameContent: (() -> CGImage?)? = nil
 
     private typealias Layout = MarkupToolbarLayout
 
@@ -58,6 +60,9 @@ struct MarkupToolbar: View {
 
     /// 玻璃形状变形的公共命名空间：同 id 的玻璃在增删时互相流动。
     @Namespace private var glassNamespace
+
+    /// 带壳 popover 的展开状态。放在视图本地：它不是工具，不参与 `optionsTarget` 的互斥。
+    @State private var isFramePopoverPresented = false
 
     // 模式条的 id 与工具条区分开：裁剪 / 取字是「整条替换」，
     // 和工具条 ↔ 动作条那种「半条变化」不是同一次变形。
@@ -434,6 +439,8 @@ struct MarkupToolbar: View {
             }
 
             HStack(spacing: Layout.itemSpacing) {
+                frameButton
+
                 Button(action: actions.copy) {
                     Label("复制", systemImage: "doc.on.doc")
                 }
@@ -456,6 +463,22 @@ struct MarkupToolbar: View {
                     }
                 }
             }
+        }
+    }
+
+    /// 带壳：输出前的最后一个视觉设置。按钮高亮表示「复制 / 保存 / 贴图会带上壳」。
+    private var frameButton: some View {
+        Button {
+            isFramePopoverPresented.toggle()
+        } label: {
+            iconOnly(symbol: "macwindow")
+        }
+        .glassControlStyle(prominent: model.isFrameEnabled, clear: true)
+        .help(model.isFrameEnabled ? "带壳已开启（点击调整）" : "带壳：给截图加 macOS 窗口壳")
+        .accessibilityLabel("带壳")
+        .accessibilityAddTraits(model.isFrameEnabled ? [.isSelected] : [])
+        .popover(isPresented: $isFramePopoverPresented, arrowEdge: .bottom) {
+            ScreenshotFramePopover(model: model, content: frameContent)
         }
     }
 

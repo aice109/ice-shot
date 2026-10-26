@@ -538,27 +538,11 @@ final class SelectionOverlayController: SelectionOverlayPresenting {
 
     /// 把显示器局部 points 选区换算成模型图上的像素矩形。
     private func pixelRect(for session: Session, rect: CGRect) -> CGRect? {
-        let imageFrame = session.imageFrame
-        guard imageFrame.width > 0, imageFrame.height > 0 else { return nil }
-        let scaleX = CGFloat(session.image.width) / imageFrame.width
-        let scaleY = CGFloat(session.image.height) / imageFrame.height
-        let pixel = CGRect(
-            x: ((rect.minX - imageFrame.minX) * scaleX).rounded(),
-            y: ((rect.minY - imageFrame.minY) * scaleY).rounded(),
-            width: (rect.width * scaleX).rounded(),
-            height: (rect.height * scaleY).rounded()
+        OverlayPixelGeometry.pixelRect(
+            selection: rect,
+            imageFrame: session.imageFrame,
+            imageSize: CGSize(width: session.image.width, height: session.image.height)
         )
-        let bounds = CGRect(
-            x: 0,
-            y: 0,
-            width: session.image.width,
-            height: session.image.height
-        )
-        let clipped = pixel.intersection(bounds)
-        guard !clipped.isNull, clipped.width >= 1, clipped.height >= 1 else {
-            return nil
-        }
-        return clipped
     }
 
     private func croppedImage(_ session: Session, rect: CGRect) -> CGImage? {

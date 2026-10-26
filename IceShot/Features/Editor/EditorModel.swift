@@ -62,6 +62,28 @@ final class EditorModel {
     private(set) var magnifierShape: AreaShape = .ellipse
     private(set) var magnifierZoom: Double = MagnifierStyle.defaultZoom
     var statusMessage: String?
+    /// 导出带壳样式；`nil` 表示不带壳。
+    ///
+    /// 只影响复制 / 保存 / 贴图，不烘进 `image`，也不进撤销栈。这样历史原图始终是干净的，
+    /// 用户重新打开历史后还能换一种壳或彻底关掉。
+    private(set) var frameStyle: ScreenshotFrameStyle?
+
+    var isFrameEnabled: Bool { frameStyle != nil }
+
+    /// 开关带壳。开启时保留上次的详细样式；第一次开启用默认窗口壳。
+    func setFrameEnabled(_ enabled: Bool) {
+        if enabled {
+            frameStyle = frameStyle ?? .default
+        } else {
+            frameStyle = nil
+        }
+    }
+
+    /// 替换整套带壳样式；传 `nil` 等价于关闭。
+    func setFrameStyle(_ style: ScreenshotFrameStyle?) {
+        frameStyle = style
+    }
+
     @ObservationIgnored var onToolChange: ((EditorTool) -> Void)?
     /// 选中态变化（画布点选 / 新增 / 删除 / 撤销）。AppKit 工具栏靠它刷新按钮状态。
     @ObservationIgnored var onSelectionChange: (() -> Void)?
