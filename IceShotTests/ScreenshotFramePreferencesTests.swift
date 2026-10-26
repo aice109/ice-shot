@@ -304,6 +304,75 @@ struct ScreenshotFramePreferencesTests {
         #expect(active.background == .aurora)
     }
 
+    // MARK: - 设备壳：机身配色
+
+    @Test("机身配色默认银色，存了能读回")
+    func deviceFinishPersists() throws {
+        let defaults = isolatedDefaults()
+        #expect(ScreenshotFramePreferences.deviceFinish(from: defaults) == .silver)
+
+        ScreenshotFramePreferences.saveDeviceFinish(.spaceGray, to: defaults)
+        #expect(ScreenshotFramePreferences.deviceFinish(from: defaults) == .spaceGray)
+    }
+
+    @Test("机身配色被改坏时退回银色")
+    func corruptFinishFallsBack() {
+        let defaults = isolatedDefaults()
+        defaults.set("chrome", forKey: ScreenshotFramePreferences.deviceFinishKey)
+        #expect(ScreenshotFramePreferences.deviceFinish(from: defaults) == .silver)
+    }
+
+    @Test("新模型沿用上次的机身配色")
+    func newModelRestoresDeviceFinish() throws {
+        let defaults = isolatedDefaults()
+        ScreenshotFramePreferences.saveDeviceFinish(.spaceGray, to: defaults)
+
+        let model = EditorModel(
+            image: try makeImage(),
+            title: "测试",
+            framePreferenceDefaults: defaults
+        )
+        #expect(model.deviceFinish == .spaceGray)
+    }
+
+    @Test("改机身配色会写进偏好")
+    func setDeviceFinishPersists() throws {
+        let defaults = isolatedDefaults()
+        let model = EditorModel(
+            image: try makeImage(),
+            title: "测试",
+            framePreferenceDefaults: defaults
+        )
+        model.setDeviceFinish(.spaceGray)
+        #expect(model.deviceFinish == .spaceGray)
+        #expect(ScreenshotFramePreferences.deviceFinish(from: defaults) == .spaceGray)
+    }
+
+    @Test("设备壳样式带上模型选中的机身配色")
+    func deviceFrameStyleUsesSelectedFinish() throws {
+        let model = EditorModel(
+            image: try makeImage(),
+            title: "测试",
+            framePreferenceDefaults: isolatedDefaults()
+        )
+        model.applyDefaultFrameStyle(for: .display)
+        model.setFrameEnabled(true)
+        model.setDeviceFinish(.spaceGray)
+
+        #expect(model.isDeviceFrame)
+        #expect(model.deviceFrameStyle.finish == .spaceGray)
+        // 背景 / 边距 / 阴影从带壳样式沿用。
+        #expect(model.deviceFrameStyle.background.rawValue == (model.frameStyle?.background ?? .graphite).rawValue)
+    }
+
+    @Test("清空偏好会一并清掉机身配色")
+    func clearRemovesDeviceFinish() {
+        let defaults = isolatedDefaults()
+        ScreenshotFramePreferences.saveDeviceFinish(.spaceGray, to: defaults)
+        ScreenshotFramePreferences.clear(defaults)
+        #expect(ScreenshotFramePreferences.deviceFinish(from: defaults) == .silver)
+    }
+
     // MARK: - 辅助
 
     private func makeImage() throws -> CGImage {

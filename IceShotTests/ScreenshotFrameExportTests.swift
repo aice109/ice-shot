@@ -154,7 +154,41 @@ struct ScreenshotFrameExportTests {
         #expect(try pixelsAreEqual(exported, source))
     }
 
-    @Test("带壳不改动模型里的原图与撤销栈")
+    @Test("设备壳导出：尺寸变大，但模型里的原图不变")
+    func deviceFrameKeepsModelImage() throws {
+        let source = try makeQuadrantImage()
+        let model = makeModel(source, title: "测试")
+        model.applyDefaultFrameStyle(for: .display)
+        model.setFrameEnabled(true)
+
+        #expect(model.isDeviceFrame)
+        let exported = try #require(model.exportImage())
+
+        // 导出大一圈（机身 + 黑边 + 留白）。
+        #expect(exported.width > source.width)
+        #expect(exported.height > source.height)
+        // 模型图像仍是干净原图（历史库 / 画布 / OCR 靠这个）。
+        #expect(model.image === source)
+        #expect(model.image.width == source.width)
+    }
+
+    @Test("设备壳 × 全部显示器：其余屏也套同一个机身")
+    func deviceFrameAppliesToBatch() throws {
+        let style = ScreenshotFrameStyle(chrome: .macbook)
+        let plain = try makeSolidImage(width: 1000, height: 600)
+        let current = try ScreenshotFrameComposer.compose(plain, cropRect: nil, style: style)
+
+        var images = [plain, plain]
+        images[1] = current
+        let output = Self.applyFrame(images, index: 1, style: style)
+
+        // 当前屏不重复套壳；另一屏补上同一层机身。
+        #expect(output[1].width == current.width)
+        #expect(output[0].width == current.width)
+        #expect(output[0].width > plain.width)
+    }
+
+    @Test("带壳不动模型图像与撤销栈")
     func frameDoesNotTouchModelImage() throws {
         let source = try makeQuadrantImage()
         let model = makeModel(source, title: "测试")
@@ -231,6 +265,9 @@ struct ScreenshotFrameExportTests {
     }
 
     /// 与 `CaptureCoordinator.framedBatch` 同构的纯函数，供测试在不上 UI 的前提下验证约定。
+    ///
+    /// 注意必须走 `compose`：生产代码用的是它，设备壳（`.macbook`）也在里面被转交。
+    /// 用 `render` 会绕开路由，测出来的尺寸和真机对不上。
     private static func applyFrame(
         _ images: [CGImage],
         index: Int,
@@ -239,7 +276,7 @@ struct ScreenshotFrameExportTests {
         guard let style else { return images }
         return images.enumerated().map { offset, image in
             guard offset != index else { return image }
-            return (try? ScreenshotFrameComposer.render(image, style: style)) ?? image
+            return (try? ScreenshotFrameComposer.compose(image, cropRect: nil, style: style)) ?? image
         }
     }
 

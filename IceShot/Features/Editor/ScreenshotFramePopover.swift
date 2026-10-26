@@ -126,9 +126,13 @@ struct ScreenshotFramePopover: View {
         VStack(alignment: .leading, spacing: Self.sectionSpacing) {
             chromeSection
 
-            labeledPicker(String(localized: "外观"), selection: appearanceBinding) {
-                ForEach(ScreenshotFrameStyle.Appearance.allCases, id: \.self) { appearance in
-                    Text(appearance.title).tag(appearance)
+            // 「外观」调的是窗口标题栏的明暗。设备壳没有标题栏，且机身配色是独立的
+            // 「机身」选项，这儿再放一个外观选择器只会让用户白点。
+            if !model.isDeviceFrame {
+                labeledPicker(String(localized: "外观"), selection: appearanceBinding) {
+                    ForEach(ScreenshotFrameStyle.Appearance.allCases, id: \.self) { appearance in
+                        Text(appearance.title).tag(appearance)
+                    }
                 }
             }
 
@@ -154,13 +158,17 @@ struct ScreenshotFramePopover: View {
             }
             .font(.callout)
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text("标题")
-                    .font(.callout)
-                // 默认空：不自动填窗口标题，避免把窗口标题里的隐私带进导出图。
-                TextField("可选，默认不显示", text: titleBinding)
-                    .textFieldStyle(.roundedBorder)
-                    .accessibilityLabel("标题")
+            // 标题画在窗口标题栏里。设备壳没有标题栏，填了也不会显示，
+            // 所以直接不展示这个输入框，而不是让用户白填。
+            if !model.isDeviceFrame {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("标题")
+                        .font(.callout)
+                    // 默认空：不自动填窗口标题，避免把窗口标题里的隐私带进导出图。
+                    TextField("可选，默认不显示", text: titleBinding)
+                        .textFieldStyle(.roundedBorder)
+                        .accessibilityLabel("标题")
+                }
             }
         }
         .font(.callout)
