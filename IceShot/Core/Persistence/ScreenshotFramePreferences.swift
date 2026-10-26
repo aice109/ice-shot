@@ -17,6 +17,8 @@ nonisolated enum ScreenshotFramePreferences {
     static let paddingKey = "screenshotFramePadding"
     static let showsShadowKey = "screenshotFrameShowsShadow"
     static let titleKey = "screenshotFrameTitle"
+    /// 设备壳机身配色。
+    static let deviceFinishKey = "screenshotFrameDeviceFinish"
 
     /// 标题长度上限。
     ///
@@ -70,8 +72,23 @@ nonisolated enum ScreenshotFramePreferences {
         defaults.set(normalizedTitle(style.title), forKey: titleKey)
     }
 
+    /// 保存设备壳的机身配色。
+    static func saveDeviceFinish(_ finish: DeviceFrameStyle.Finish, to defaults: UserDefaults = .standard) {
+        defaults.set(finish.rawValue, forKey: deviceFinishKey)
+    }
+
+    /// 读取设备壳的机身配色；没存过用默认。
+    static func deviceFinish(from defaults: UserDefaults = .standard) -> DeviceFrameStyle.Finish {
+        guard let raw = defaults.string(forKey: deviceFinishKey),
+              let finish = DeviceFrameStyle.Finish(rawValue: raw) else {
+            return .silver
+        }
+        return finish
+    }
+
     static func clear(_ defaults: UserDefaults = .standard) {
-        for key in [enabledKey, chromeKey, appearanceKey, backgroundKey, paddingKey, showsShadowKey, titleKey] {
+        for key in [enabledKey, chromeKey, appearanceKey, backgroundKey, paddingKey,
+                    showsShadowKey, titleKey, deviceFinishKey] {
             defaults.removeObject(forKey: key)
         }
     }

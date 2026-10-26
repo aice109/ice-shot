@@ -19,22 +19,40 @@ nonisolated struct ScreenshotFrameStyle: Hashable, Sendable {
         /// 仅圆角、描边、投影与背景，不再加一层标题栏。
         /// 给「本身已经是窗口截图」的图用，避免双层交通灯。
         case shadowOnly
+        /// MacBook 机身。只给整屏截图（全屏 / 全部显示器），
+        /// 实际渲染转交 `DeviceFrameComposer`。
+        case macbook
 
         var title: String {
             switch self {
             case .window: return String(localized: "窗口")
             case .shadowOnly: return String(localized: "仅阴影")
+            case .macbook: return String(localized: "MacBook")
             }
+        }
+
+        /// 这一档是不是设备壳（要转交另一个渲染器）。
+        var usesDeviceFrame: Bool {
+            self == .macbook
         }
     }
 
     /// 某个来源下允许的壳形态。
     ///
-    /// 窗口截图只有一档：它的画面里已经有交通灯了。
-    /// 其它来源两档都行。返回数组而非单个值，是为了让 popover 能直接
-    /// 决定「只显示一项时就不画选择器」。
+    /// 三档来源规则：
+    /// - 窗口：只有 `.shadowOnly`，画面里已经有交通灯；
+    /// - 全屏 / 全部显示器：`.macbook` 顶替 `.window`——整屏内容套一扇假窗口标题栏很违和，
+    ///   套机身才说得通；
+    /// - 区域 / 长截图：保持原样两档。
     static func allowedChrome(for source: ScreenshotSource) -> [Chrome] {
-        source == .window ? [.shadowOnly] : Chrome.allCases
+        switch source {
+        case .window:
+            return [.shadowOnly]
+        case .display, .allDisplays:
+            return [.macbook, .shadowOnly]
+        case .region, .scroll:
+            return [.window, .shadowOnly]
+        }
     }
 
     /// 窗口外观。自动模式按截图顶部亮度决定，不读系统外观。

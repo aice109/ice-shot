@@ -41,15 +41,27 @@ struct ScreenshotFrameStyleTests {
         #expect(style.chrome == .shadowOnly)
     }
 
-    @Test("其它来源保持默认窗口壳")
-    func otherSourcesKeepWindowChrome() throws {
-        for source in [ScreenshotSource.region, .display, .allDisplays, .scroll] {
+    @Test("区域 / 长截图保持默认窗口壳")
+    func regionAndScrollKeepWindowChrome() throws {
+        for source in [ScreenshotSource.region, .scroll] {
             let model = makeModel(try makeImage(), title: "测试")
             model.applyDefaultFrameStyle(for: source)
             model.setFrameEnabled(true)
 
             let style = try #require(model.frameStyle)
             #expect(style.chrome == .window, "\(source) 不该被改成仅阴影")
+        }
+    }
+
+    @Test("全屏 / 全部显示器默认用 MacBook 机壳")
+    func fullScreenDefaultsToMacbook() throws {
+        for source in [ScreenshotSource.display, .allDisplays] {
+            let model = makeModel(try makeImage(), title: "测试")
+            model.applyDefaultFrameStyle(for: source)
+            model.setFrameEnabled(true)
+
+            let style = try #require(model.frameStyle)
+            #expect(style.chrome == .macbook, "\(source) 应该套机身而不是窗口壳")
         }
     }
 
@@ -151,7 +163,7 @@ struct ScreenshotFrameStyleTests {
 
     @Test("样式档位全部可枚举，不会漏掉新增项")
     func allStyleCasesEnumerate() {
-        #expect(ScreenshotFrameStyle.Chrome.allCases.count == 2)
+        #expect(ScreenshotFrameStyle.Chrome.allCases.count == 3)
         #expect(ScreenshotFrameStyle.Appearance.allCases.count == 3)
         #expect(ScreenshotFrameStyle.Background.allCases.count == 5)
         #expect(ScreenshotFrameStyle.Padding.allCases.count == 3)
@@ -179,11 +191,19 @@ struct ScreenshotFrameStyleTests {
                     style.background = background
                     style.padding = padding
 
-                    let output = try ScreenshotFrameComposer.render(content, style: style)
-                    #expect(output.width > 1000, "\(chrome)/\(background)/\(padding) 应该有留白")
-                    #expect(
-                        output.height == 600 + (chrome == .window ? 28 : 0) + Int(padding.baseValue * 2)
+                    // `.macbook` 的几何在另一个渲染器里，尺寸规格也不同，
+                    // 这里只验证它不会崩、且确实比内容大。
+                    let output = try ScreenshotFrameComposer.compose(
+                        content,
+                        cropRect: nil,
+                        style: style
                     )
+                    #expect(output.width > 1000, "\(chrome)/\(background)/\(padding) 应该有留白")
+                    if !chrome.usesDeviceFrame {
+                        #expect(
+                            output.height == 600 + (chrome == .window ? 28 : 0) + Int(padding.baseValue * 2)
+                        )
+                    }
                 }
             }
         }

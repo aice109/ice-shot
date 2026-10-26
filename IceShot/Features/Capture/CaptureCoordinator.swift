@@ -874,7 +874,8 @@ final class CaptureCoordinator {
         guard let style else { return images }
         return images.enumerated().map { offset, image in
             guard offset != index else { return image }
-            return (try? ScreenshotFrameComposer.render(image, style: style)) ?? image
+            // 走 `compose`：`.macbook` 要转交给设备壳渲染器。
+            return (try? ScreenshotFrameComposer.compose(image, cropRect: nil, style: style)) ?? image
         }
     }
 

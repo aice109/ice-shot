@@ -25,7 +25,11 @@
 | 样式 | 内容 | 用在哪 |
 | --- | --- | --- |
 | 窗口 | 标题栏 + 红黄绿 + 可选标题 + 圆角 + 投影 | 区域 / 全屏 / 全部显示器 / 长截图 |
-| 仅阴影 | 圆角 + 描边 + 投影 + 背景，不加重标题栏 | 窗口截图（**唯一选项**） |
+| 仅阴影 | 圆角 + 描边 + 投影 + 背景，不加重标题栏 | 窗口截图（**唯一选项**）、整屏截图 |
+| MacBook | 机身 + 黑边 + 刘海 | 全屏 / 全部显示器（顶替「窗口」档） |
+
+`Chrome` 的可用档位由来源决定，见 `ScreenshotFrameStyle.allowedChrome(for:)`；
+`.macbook` 的实际渲染转交 `DeviceFrameComposer`（详见 [screenshot-device-frame.md](screenshot-device-frame.md)）。
 
 窗口截图不给选择：它的画面里已经带着自己的红黄绿，再套一层窗口壳就是双层交通灯。
 这条约束由 `ScreenshotFrameStyle.allowedChrome(for:)` 单点给出，

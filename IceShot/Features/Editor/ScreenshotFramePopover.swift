@@ -182,7 +182,7 @@ struct ScreenshotFramePopover: View {
         }
     }
 
-    /// 壳形态。窗口截图只有一档：不画选择器，直接说明为什么。
+    /// 壳形态。只剩一档时不画选择器，直接说明原因。
     @ViewBuilder
     private var chromeSection: some View {
         let options = model.allowedChrome
@@ -205,6 +205,15 @@ struct ScreenshotFramePopover: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
+
+        // 设备壳的机身配色：只在选了 MacBook 时出现。
+        if model.isDeviceFrame {
+            labeledPicker(String(localized: "机身"), selection: finishBinding) {
+                ForEach(DeviceFrameStyle.Finish.allCases, id: \.self) { finish in
+                    Text(finish.title).tag(finish)
+                }
+            }
+        }
     }
 
     // MARK: - 绑定（全部写回 `EditorModel.setFrameStyle`）
@@ -213,6 +222,13 @@ struct ScreenshotFramePopover: View {
         Binding(
             get: { style.chrome },
             set: { value in updateStyle { $0.chrome = value } }
+        )
+    }
+
+    private var finishBinding: Binding<DeviceFrameStyle.Finish> {
+        Binding(
+            get: { model.deviceFinish },
+            set: { model.setDeviceFinish($0) }
         )
     }
 
@@ -270,8 +286,10 @@ struct ScreenshotFramePopover: View {
         }
 
         if let style = model.frameStyle {
-            preview = try? ScreenshotFrameComposer.render(
+            // 走 `compose` 而不是 `render`：`.macbook` 会被转交给设备壳渲染器。
+            preview = try? ScreenshotFrameComposer.compose(
                 contentImage,
+                cropRect: nil,
                 style: style,
                 maximumDimension: 720
             )

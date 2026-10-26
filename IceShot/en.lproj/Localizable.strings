@@ -392,3 +392,6 @@ Screenshots are saved to history automatically.";
 "可选，默认不显示" = "Optional, hidden by default";
 "这张图本身是窗口截图，用「窗口」会出现双层交通灯。" = "This is already a window screenshot; using Window would show two sets of traffic lights.";
 "这张图本身已是窗口截图，自带红黄绿，只提供「仅阴影」。" = "This is already a window screenshot with its own traffic lights, so only Shadow Only is available.";
+"机身" = "Finish";
+"银色" = "Silver";
+"深空灰" = "Space Gray";

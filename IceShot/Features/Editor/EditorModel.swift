@@ -94,9 +94,25 @@ final class EditorModel {
 
     /// 本来源下允许的壳形态。
     ///
-    /// 窗口截图只给一档，popover 据此不画选择器，用户没有可选项。
+    /// 窗口截图只给一档，整屏截图给「MacBook / 仅阴影」，popover 据此决定画不画选择器。
     var allowedChrome: [ScreenshotFrameStyle.Chrome] {
         ScreenshotFrameStyle.allowedChrome(for: source)
+    }
+
+    /// 当前壳形态是不是设备壳。
+    var isDeviceFrame: Bool {
+        frameStyle?.chrome.usesDeviceFrame ?? false
+    }
+
+    /// 设备壳的机身配色。只对`.macbook` 有意义；其它形态下 popover 不展示它。
+    ///
+    /// 存在模型里而不是渲染器里，理由与带壳其余选项一致：它是输出设置，
+    /// 要进预览、要进偏好、但不进撤销栈。
+    private(set) var deviceFinish: DeviceFrameStyle.Finish = .silver
+
+    func setDeviceFinish(_ finish: DeviceFrameStyle.Finish) {
+        deviceFinish = finish
+        ScreenshotFramePreferences.saveDeviceFinish(finish, to: framePreferenceDefaults)
     }
 
     /// 告诉模型「这张图从哪来」，据此约束壳形态。
@@ -165,6 +181,14 @@ final class EditorModel {
         rememberFrameStyle()
     }
 
+    /// 导出图用的设备壳样式。从当前带壳样式推导（背景 / 边距 / 阴影沿用），
+    /// 机身配色取模型自己的设置。
+    var deviceFrameStyle: DeviceFrameStyle {
+        var style = DeviceFrameStyle.derived(from: frameStyle ?? defaultFrameStyle)
+        style.finish = deviceFinish
+        return style
+    }
+
     @ObservationIgnored var onToolChange: ((EditorTool) -> Void)?
     /// 选中态变化（画布点选 / 新增 / 删除 / 撤销）。AppKit 工具栏靠它刷新按钮状态。
     @ObservationIgnored var onSelectionChange: (() -> Void)?
@@ -194,6 +218,7 @@ final class EditorModel {
         self.title = title
         self.framePreferenceDefaults = framePreferenceDefaults
         self.defaultFrameStyle = ScreenshotFramePreferences.style(from: framePreferenceDefaults) ?? .default
+        self.deviceFinish = ScreenshotFramePreferences.deviceFinish(from: framePreferenceDefaults)
         // 上次开着带壳就仍开着；没开过（或上次手动关了）就是关的。
         if ScreenshotFramePreferences.isEnabled(from: framePreferenceDefaults) {
             self.frameStyle = defaultFrameStyle

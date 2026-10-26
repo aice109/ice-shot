@@ -87,7 +87,7 @@ IceShot 的功能全貌与后续规划。全部需求只分三块：**已完成*
 | 🔜 | P2 | 分发渠道 | Homebrew Cask、下载页 |
 | 🔜 | P2 | 标签录入 | 字段与搜索逻辑已就绪，缺打标签入口与筛选联动 |
 | 🔜 | P2 | 菜单 / 下拉层抓取 | 窗口模式目前只有基础能力 |
-| ✅ | P2 | 拼图 / 带壳 / 背景美化 | 把截图做成成品图。带壳已完成（套壳渲染、输出接入、全部样式选项、偏好记忆）；设备壳（MacBook 外框）已定设计、未开工，见 [screenshot-device-frame.md](screenshot-device-frame.md)；拼图未开始 |
+| ✅ | P2 | 拼图 / 带壳 / 背景美化 | 把截图做成成品图。带壳已完成（套壳渲染、输出接入、全部样式选项、偏好记忆）；设备壳（MacBook 外框）N1 渲染器已完成、输出与 UI 待做，见 [screenshot-device-frame.md](screenshot-device-frame.md)；拼图未开始 |
 | 🔜 | P2 | 取色器 / 屏幕标尺 | 屏幕工具类扩展 |
 | 🔜 | P2 | Shortcuts / AppIntents | 系统自动化接入 |
 | 🔜 | P2 | URL Scheme / CLI | 脚本与外部调用入口 |

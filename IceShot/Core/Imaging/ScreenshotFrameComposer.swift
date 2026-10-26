@@ -35,8 +35,17 @@ nonisolated enum ScreenshotFrameComposer {
             // 不带壳：裁剪了就返回裁剪结果，没裁剪就把传入的图原样交回去。
             return cropped ?? content
         }
+        let framed = cropped ?? content
+        // `.macbook` 转交设备壳渲染器：两套几何完全不同，不硬塞在同一份布局代码里。
+        if style.chrome.usesDeviceFrame {
+            return try DeviceFrameComposer.render(
+                framed,
+                style: DeviceFrameStyle.derived(from: style),
+                maximumDimension: maximumDimension
+            )
+        }
         return try render(
-            cropped ?? content,
+            framed,
             style: style,
             maximumDimension: maximumDimension
         )
@@ -286,7 +295,8 @@ nonisolated enum ScreenshotFrameComposer {
 
     // MARK: - 绘制细节
 
-    private static func drawLinearGradient(
+    /// 线性渐变。设备壳渲染器也要用，因此不是 private（见 `DeviceFrameComposer`）。
+    static func drawLinearGradient(
         from start: CGPoint,
         to end: CGPoint,
         colors: [CGColor],
