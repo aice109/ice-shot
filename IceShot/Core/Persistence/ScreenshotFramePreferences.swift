@@ -1,18 +1,16 @@
 import Foundation
 
-/// 「带壳」的样式偏好：记住**上次用过的样式**，下次开启时直接沿用。
+/// 「带壳」偏好：记住**上次用没用**开带壳，以及**用的是什么样式**。
 ///
-/// 两条规则不能混：
-///
-/// 1. **每次截图仍然默认关闭带壳**。这里只记样式，不记开关——
-///    默认开启会让「随手截一张」突然多出一圈留白，是个不受欢迎的意外。
-/// 2. **样式本身要跨次记住**。用户调好的背景 / 边距 / 标题没必要每次重调。
+/// 开关与样式是两个独立字段，恢复时互相不干扰：
+/// 上次关着带壳，下次仍然关着；上次开着，下次就开着——但样式总是上次那份。
 ///
 /// 存储用原始值逐项映射，不给 `ScreenshotFrameStyle` 加 `Codable`：
 /// 那份样式是导出渲染的输入，加序列化会把它和磁盘格式绑死，
 /// 以后删掉一档背景就得写迁移。这里只存字符串，读不回来就退回默认。
 nonisolated enum ScreenshotFramePreferences {
     /// `UserDefaults` 中各字段的 key。分字段存，坏掉一项不会连带其它项。
+    static let enabledKey = "screenshotFrameEnabled"
     static let chromeKey = "screenshotFrameChrome"
     static let appearanceKey = "screenshotFrameAppearance"
     static let backgroundKey = "screenshotFrameBackground"
@@ -25,6 +23,16 @@ nonisolated enum ScreenshotFramePreferences {
     /// 标题会被画进导出图：太长会撑出标题栏、也容易把整句话的隐私写死进图里。
     /// 超长直接截断，而不是拒绝保存。
     static let maximumTitleLength = 80
+
+    /// 读取上次**是否开着**带壳。没存过时为 `false`。
+    static func isEnabled(from defaults: UserDefaults = .standard) -> Bool {
+        defaults.bool(forKey: enabledKey)
+    }
+
+    /// 记住带壳开关。
+    static func saveEnabled(_ isEnabled: Bool, to defaults: UserDefaults = .standard) {
+        defaults.set(isEnabled, forKey: enabledKey)
+    }
 
     /// 读取上次的样式；从没存过时返回 `nil`（调用方据此用来源默认样式）。
     static func style(from defaults: UserDefaults = .standard) -> ScreenshotFrameStyle? {
@@ -63,7 +71,7 @@ nonisolated enum ScreenshotFramePreferences {
     }
 
     static func clear(_ defaults: UserDefaults = .standard) {
-        for key in [chromeKey, appearanceKey, backgroundKey, paddingKey, showsShadowKey, titleKey] {
+        for key in [enabledKey, chromeKey, appearanceKey, backgroundKey, paddingKey, showsShadowKey, titleKey] {
             defaults.removeObject(forKey: key)
         }
     }

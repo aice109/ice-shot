@@ -71,12 +71,15 @@ final class EditorModel {
     var isFrameEnabled: Bool { frameStyle != nil }
 
     /// 开关带壳。开启时沿用上次用过的详细样式（`defaultFrameStyle`）。
+    ///
+    /// 每次都记进偏好：开关本身就是用户表态，下次截图直接沿用。
     func setFrameEnabled(_ enabled: Bool) {
         if enabled {
             frameStyle = frameStyle ?? defaultFrameStyle
         } else {
             frameStyle = nil
         }
+        ScreenshotFramePreferences.saveEnabled(enabled, to: framePreferenceDefaults)
     }
 
     /// 第一次开启带壳时用的样式。
@@ -156,6 +159,10 @@ final class EditorModel {
         self.title = title
         self.framePreferenceDefaults = framePreferenceDefaults
         self.defaultFrameStyle = ScreenshotFramePreferences.style(from: framePreferenceDefaults) ?? .default
+        // 上次开着带壳就仍开着；没开过（或上次手动关了）就是关的。
+        if ScreenshotFramePreferences.isEnabled(from: framePreferenceDefaults) {
+            self.frameStyle = defaultFrameStyle
+        }
         // 每个用户动作自己成组（见 `registerUndo`），不按事件循环自动合并，
         // 否则「改文字 + 紧接着画一笔」会变成同一个撤销步骤。
         fallbackUndoManager.groupsByEvent = false

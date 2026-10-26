@@ -390,6 +390,12 @@ final class SelectionOverlayController: SelectionOverlayPresenting {
             case "t" where flags.contains(.shift):
                 state.editor?.setTextPicking(true)
                 return nil
+            case "b" where !flags.contains(.shift) && !flags.contains(.option) && !flags.contains(.control):
+                // ⌘B 快速开关带壳，与编辑器窗口一致（见 EditorWindowController）。
+                if let editor = state.editor {
+                    editor.setFrameEnabled(!editor.isFrameEnabled)
+                }
+                return nil
             default:
                 return event
             }

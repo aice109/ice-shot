@@ -205,8 +205,8 @@ struct ScreenshotFrameStyleTests {
     private static func isolatedDefaults() -> UserDefaults {
         let suiteName = "IceShotTests.FrameStyle.\(UUID().uuidString)"
         guard let defaults = UserDefaults(suiteName: suiteName) else {
-            Issue.record("无法创建隔离的 UserDefaults 域：\(suiteName)")
-            return .standard
+            // 退回 `.standard` 会让测试静默写坏用户真实偏好，宁可当场炸掉。
+            fatalError("无法创建隔离的 UserDefaults 域：\(suiteName)")
         }
         return defaults
     }

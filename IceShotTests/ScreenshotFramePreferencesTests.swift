@@ -5,10 +5,10 @@ import Testing
 
 /// 带壳偏好的持久化。
 ///
-/// 两个必须同时成立、又容易互相冲突的约定：
+/// 现在记住两件事，且两者互不干扰：
 ///
-/// 1. **每次截图仍然默认关闭带壳**——记住样式不等于记住开关；
-/// 2. **样式本身跨次记住**——用户调好的背景 / 边距 / 标题不用每次重调。
+/// 1. **上次开没开**带壳——上次开着就仍开着，没开过就关着；
+/// 2. **上次的样式**——背景 / 边距 / 标题不用每次重调。
 ///
 /// 每个用例都用独立 `UserDefaults` 域，避免测试之间互相污染。
 @MainActor
@@ -17,8 +17,8 @@ struct ScreenshotFramePreferencesTests {
     private func isolatedDefaults() -> UserDefaults {
         let suiteName = "IceShotTests.FramePreferences.\(UUID().uuidString)"
         guard let defaults = UserDefaults(suiteName: suiteName) else {
-            Issue.record("无法创建隔离的 UserDefaults 域：\(suiteName)")
-            return .standard
+            // 退回 `.standard` 会让测试静默写坏用户真实偏好，宁可当场炸掉。
+            fatalError("无法创建隔离的 UserDefaults 域：\(suiteName)")
         }
         return defaults
     }
@@ -157,7 +157,7 @@ struct ScreenshotFramePreferencesTests {
         #expect(active.title == "记住我")
     }
 
-    @Test("新模型仍然默认关闭带壳")
+    @Test("没开过带壳时，新模型默认关闭")
     func newModelStartsWithFrameDisabled() throws {
         let defaults = isolatedDefaults()
         ScreenshotFramePreferences.save(.default, to: defaults)
@@ -167,9 +167,56 @@ struct ScreenshotFramePreferencesTests {
             title: "测试",
             framePreferenceDefaults: defaults
         )
-        // 记住的是样式，不是开关：每次截图仍然默认不带壳。
+        // 从没开过 → 下次也是关的。
         #expect(model.frameStyle == nil)
         #expect(!model.isFrameEnabled)
+    }
+
+    @Test("上次开着带壳，新模型也开着")
+    func newModelRestoresEnabledState() throws {
+        let defaults = isolatedDefaults()
+        var style = ScreenshotFrameStyle.default
+        style.background = .ocean
+        ScreenshotFramePreferences.save(style, to: defaults)
+        ScreenshotFramePreferences.saveEnabled(true, to: defaults)
+
+        let model = EditorModel(
+            image: try makeImage(),
+            title: "测试",
+            framePreferenceDefaults: defaults
+        )
+        #expect(model.isFrameEnabled)
+        // 样式也是上次那份，不是默认值。
+        #expect(model.frameStyle?.background == .ocean)
+    }
+
+    @Test("上次手动关了带壳，新模型不因记住样式而开启")
+    func disabledStateIsRemembered() throws {
+        let defaults = isolatedDefaults()
+        ScreenshotFramePreferences.save(.default, to: defaults)
+        ScreenshotFramePreferences.saveEnabled(false, to: defaults)
+
+        let model = EditorModel(
+            image: try makeImage(),
+            title: "测试",
+            framePreferenceDefaults: defaults
+        )
+        #expect(!model.isFrameEnabled)
+    }
+
+    @Test("开关会写进偏好")
+    func togglingPersistsEnabledState() throws {
+        let defaults = isolatedDefaults()
+        let model = EditorModel(
+            image: try makeImage(),
+            title: "测试",
+            framePreferenceDefaults: defaults
+        )
+        model.setFrameEnabled(true)
+        #expect(ScreenshotFramePreferences.isEnabled(from: defaults))
+
+        model.setFrameEnabled(false)
+        #expect(!ScreenshotFramePreferences.isEnabled(from: defaults))
     }
 
     @Test("改动样式会被记住")
