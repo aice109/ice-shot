@@ -36,6 +36,9 @@ final class CaptureCoordinator {
     private let scrollFrame = ScrollCaptureFrameController()
     private let feedback: FeedbackHUDController
     private var scrollSession: ScrollCaptureSession?
+    /// 长截图起采前的「等目标窗口回到舞台」任务。
+    private var scrollStartTask: Task<Void, Never>?
+    private let previousApplicationTracker: PreviousApplicationTracker?
     private var previousApplication: NSRunningApplication?
     private var didActivateForCapture = false
     /// 防止连点把同一次窗口抓取提交成两次（抓取是 async 的，浮层在这期间仍可点）。
@@ -56,7 +59,8 @@ final class CaptureCoordinator {
         pins: PinBoard? = nil,
         editor: EditorOpening? = nil,
         scrollHUD: ScrollCaptureHUDController? = nil,
-        feedback: FeedbackHUDController
+        feedback: FeedbackHUDController,
+        previousApplicationTracker: PreviousApplicationTracker? = nil
     ) {
         self.permission = permission
         self.capture = capture
@@ -71,6 +75,7 @@ final class CaptureCoordinator {
         self.editor = editor
         self.scrollHUD = scrollHUD ?? ScrollCaptureHUDController()
         self.feedback = feedback
+        self.previousApplicationTracker = previousApplicationTracker
         refreshPermission()
     }
 
@@ -78,7 +83,8 @@ final class CaptureCoordinator {
         history: HistorySaving? = nil,
         pins: PinBoard? = nil,
         editor: EditorOpening? = nil,
-        feedback: FeedbackHUDController? = nil
+        feedback: FeedbackHUDController? = nil,
+        previousApplicationTracker: PreviousApplicationTracker? = nil
     ) {
         let capture = ScreenCaptureService()
         let hud = feedback ?? FeedbackHUDController()
@@ -94,7 +100,8 @@ final class CaptureCoordinator {
             history: history,
             pins: pins,
             editor: editor,
-            feedback: hud
+            feedback: hud,
+            previousApplicationTracker: previousApplicationTracker
         )
     }
 
@@ -259,8 +266,8 @@ final class CaptureCoordinator {
     /// 长截图：先框选区域，再让用户自己滚动，IceShot 反复抓同一块区域并拼接。
     /// 会重复抓屏，但只在用户主动进入、且限定选区内进行。
     func startScrollCapture(delay: Duration = .zero) async {
-        if let session = scrollSession, session.isRunning {
-            // 采集中再按一次快捷键 = 结束并出图。
+        // 采集中（包括起采前的等待窗口）再按一次快捷键 = 结束并出图。
+        if scrollSession != nil {
             completeScrollCapture()
             return
         }
@@ -577,10 +584,16 @@ final class CaptureCoordinator {
                 // 框选浮层是 IceShot 的 `.screenSaver` 层级 NSPanel，它关闭时如果 IceShot 仍是
                 // 前台，IceShot 自己的常规窗口（设置 / 历史）会随之露出来，正挡在用户框好的区域上。
                 // 顺序不能换：先激活自己再恢复对方，恢复会被丢掉。
-                restorePreviousApplication()
+                let target = scrollTargetApplication()
+                if restorePreviousApplication() == nil {
+                    // 菜单栏入口下 IceShot 本来就是前台，上面这一步不会动手；
+                    // 补一次激活，否则台前调度会让目标 App 一直留在舞台侧边。
+                    activateForScrollCapture(target)
+                }
                 beginScrollCapture(
                     displayID: finish.result.frame.display.id,
-                    rect: finish.result.rect
+                    rect: finish.result.rect,
+                    targetApplication: target
                 )
             }
             return
@@ -620,7 +633,11 @@ final class CaptureCoordinator {
 
     // MARK: - 长截图会话
 
-    private func beginScrollCapture(displayID: CGDirectDisplayID, rect: CGRect) {
+    private func beginScrollCapture(
+        displayID: CGDirectDisplayID,
+        rect: CGRect,
+        targetApplication: NSRunningApplication?
+    ) {
         let session = ScrollCaptureSession(
             capture: capture,
             displayID: displayID,
@@ -655,7 +672,51 @@ final class CaptureCoordinator {
         session.onCancel = { [weak self] in
             self?.cancelScrollCapture()
         }
-        session.start()
+
+        // 起采必须等目标 App 真正回到舞台：台前调度把窗口从侧边滑回来是带动画的，
+        // 动画期间抓到的首帧只是桌面。首帧一旦是桌面，后续内容帧全都匹配不上。
+        scrollHUD.update(ScrollCaptureSession.Status(
+            frameCount: 0,
+            height: 0,
+            message: String(localized: "正在等待窗口回到前台…")
+        ))
+        scrollStartTask = Task { [weak self] in
+            guard let self else { return }
+            await self.waitForTargetApplicationOnStage(targetApplication)
+            guard !Task.isCancelled, self.scrollSession === session else { return }
+            session.start()
+            self.scrollStartTask = nil
+        }
+    }
+
+    /// 等（并确认）目标 App 回到前台，再留一拍给舞台切换动画。
+    ///
+    /// 只调用 `activate` 不够：前台标记先切换，前台调度把窗口滑回原位还要时间。
+    private func waitForTargetApplicationOnStage(
+        _ target: NSRunningApplication?
+    ) async {
+        guard let target,
+              target.processIdentifier != ProcessInfo.processInfo.processIdentifier else {
+            return
+        }
+
+        let deadline = Date().addingTimeInterval(1.5)
+        while Date() < deadline {
+            guard !Task.isCancelled else { return }
+            if NSWorkspace.shared.frontmostApplication?.processIdentifier
+                == target.processIdentifier
+                || target.isTerminated {
+                break
+            }
+            do {
+                try await Task.sleep(for: .milliseconds(50))
+            } catch {
+                return
+            }
+        }
+
+        guard !Task.isCancelled else { return }
+        try? await Task.sleep(for: .milliseconds(350))
     }
 
     private func completeScrollCapture() {
@@ -663,6 +724,8 @@ final class CaptureCoordinator {
     }
 
     private func cancelScrollCapture() {
+        scrollStartTask?.cancel()
+        scrollStartTask = nil
         scrollSession = nil
         scrollFrame.dismiss()
         scrollHUD.dismiss()
@@ -671,6 +734,8 @@ final class CaptureCoordinator {
     }
 
     private func finishScrollCapture(with image: CGImage) {
+        scrollStartTask?.cancel()
+        scrollStartTask = nil
         scrollSession = nil
         scrollFrame.dismiss()
         scrollHUD.dismiss()
@@ -872,13 +937,41 @@ final class CaptureCoordinator {
         NSApplication.shared.activate()
     }
 
-    private func restorePreviousApplication() {
+    /// 长截图要还前台给的 App。
+    ///
+    /// `previousApplication` 通常就是它；但如果启动流程时 IceShot 已经在前台
+    /// （菜单栏面板入口），那个值会是 IceShot 自己，于是退回最近的外部前台 App。
+    private func scrollTargetApplication() -> NSRunningApplication? {
+        let currentPID = ProcessInfo.processInfo.processIdentifier
+        if let previousApplication,
+           previousApplication.processIdentifier != currentPID,
+           !previousApplication.isTerminated {
+            return previousApplication
+        }
+        guard let tracked = previousApplicationTracker?.lastExternalApplication,
+              tracked.processIdentifier != currentPID else {
+            return nil
+        }
+        return tracked
+    }
+
+    private func activateForScrollCapture(_ application: NSRunningApplication?) {
+        guard let application,
+              application.processIdentifier != ProcessInfo.processInfo.processIdentifier,
+              !application.isTerminated else {
+            return
+        }
+        _ = application.activate(options: [])
+    }
+
+    @discardableResult
+    private func restorePreviousApplication() -> NSRunningApplication? {
         // 这一步此前出现在崩溃栈里（`NSRunningApplication.activate`）：它可能同步
         // 询问 LaunchServices，是「收尾时转圈」最可疑的一处，单独计时。
         defer { HangTrace.mark("restoreApp.done", "activated=\(didActivateForCapture)") }
         guard didActivateForCapture else {
             previousApplication = nil
-            return
+            return nil
         }
         didActivateForCapture = false
         defer { previousApplication = nil }
@@ -886,9 +979,10 @@ final class CaptureCoordinator {
         guard let previousApplication,
               previousApplication.processIdentifier != ProcessInfo.processInfo.processIdentifier,
               !previousApplication.isTerminated else {
-            return
+            return nil
         }
         _ = previousApplication.activate(options: [])
+        return previousApplication
     }
 
     private func currentDisplay(from displays: [DisplayDescriptor]) -> DisplayDescriptor? {

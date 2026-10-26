@@ -267,6 +267,7 @@
 "没有匹配的截图" = "No Matching Screenshots";
 "没有找到可截取的窗口。请先打开一个窗口，或改用区域截图。" = "No capturable window found. Open a window first, or use region capture instead.";
 "没有找到可用的显示器。" = "No available display found.";
+"正在等待窗口回到前台…" = "Waiting for the window to return to the front…";
 "滚动太快，慢一点效果更好" = "Scrolling too fast — slower gives better results";
 "点击穿透" = "Click-through";
 "生成截图缩略图失败。" = "Failed to generate the screenshot thumbnail.";

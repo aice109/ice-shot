@@ -41,6 +41,11 @@ struct ScrollStitcher {
     private var pixels: [UInt8] = []
     private var grayscale: [UInt8] = []
     private var hasFirstFrame = false
+    /// 首帧还没有被任何后续帧匹配过。
+    ///
+    /// 起采瞬间可能抓到窗口切换 / 台前调度滑入动画里的过渡帧（桌面、半截窗口）。
+    /// 这种帧一旦被当作基线，后面每一帧真实内容都会判成跳变，整段采集作废。
+    private var baseUnconfirmed = false
 
     init?(width: Int, frameHeight: Int) {
         let cap = min(
@@ -79,6 +84,7 @@ struct ScrollStitcher {
 
         guard hasFirstFrame else {
             hasFirstFrame = true
+            baseUnconfirmed = true
             appendRows(from: rendered, range: 0..<frameHeight)
             return .appended(offset: 0, totalHeight: totalHeight)
         }
@@ -89,7 +95,13 @@ struct ScrollStitcher {
 
         switch (downward, upward) {
         case (nil, nil):
-            return .rejectedJump
+            // 首帧还没被确认过：内容对不上说明它不是稳定画面，直接换基线。
+            // 只有「已拼过至少一处」之后，对不上才按滚动太快处理。
+            guard baseUnconfirmed else {
+                return .rejectedJump
+            }
+            replaceBase(with: rendered)
+            return .appended(offset: 0, totalHeight: totalHeight)
         case (.some(let down), nil):
             return appendDownward(offset: down.offset, from: rendered)
         case (nil, .some(let up)):
@@ -116,6 +128,8 @@ struct ScrollStitcher {
         if room <= 0 {
             return .limitReached(totalHeight: totalHeight)
         }
+        // 真的拼进了新内容，基线才算被确认；只是重复帧不算。
+        baseUnconfirmed = false
         if available > room {
             appendRows(from: rendered, range: newRowStart..<(newRowStart + room))
             return .limitReached(totalHeight: totalHeight)
@@ -136,6 +150,8 @@ struct ScrollStitcher {
         if room <= 0 {
             return .limitReached(totalHeight: totalHeight)
         }
+        // 真的拼进了新内容，基线才算被确认；只是重复帧不算。
+        baseUnconfirmed = false
         if offset > room {
             // 只保留最靠近已拼内容的 `room` 行，避免超上限。
             prependRows(from: rendered, range: (offset - room)..<offset)
@@ -327,6 +343,14 @@ struct ScrollStitcher {
     }
 
     // MARK: - 缓冲
+
+    /// 用当前帧换掉还没被确认的首帧。
+    private mutating func replaceBase(with rendered: (rgba: [UInt8], gray: [UInt8])) {
+        pixels.removeAll(keepingCapacity: true)
+        grayscale.removeAll(keepingCapacity: true)
+        totalHeight = 0
+        appendRows(from: rendered, range: 0..<frameHeight)
+    }
 
     private mutating func appendRows(
         from rendered: (rgba: [UInt8], gray: [UInt8]),

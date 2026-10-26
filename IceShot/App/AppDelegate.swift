@@ -43,6 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let pins = PinBoard()
         let feedback = FeedbackHUDController()
+        let previousApplications = PreviousApplicationTracker()
         let editor = EditorCoordinator(
             pins: pins,
             feedback: feedback,
@@ -52,7 +53,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             history: runtime?.store,
             pins: pins,
             editor: editor,
-            feedback: feedback
+            feedback: feedback,
+            previousApplicationTracker: previousApplications
         )
         self.coordinator = coordinator
         self.hotkeys = GlobalHotkeyManager(coordinator: coordinator)

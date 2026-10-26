@@ -99,18 +99,66 @@ struct ScrollStitcherTests {
     @Test func bigJumpIsRejected() throws {
         let source = try makeStrip(height: 1700)
         var stitcher = try #require(ScrollStitcher(width: width, frameHeight: frameHeight))
+        // 先拼两帧，让首帧成为已确认的基线：首帧本身允许被替换（切换窗口的过渡帧）。
         _ = stitcher.append(try ImageCropper.crop(
             source,
             to: CGRect(x: 0, y: 0, width: width, height: frameHeight)
         ))
+        _ = stitcher.append(try ImageCropper.crop(
+            source,
+            to: CGRect(x: 0, y: scrollDelta, width: width, height: frameHeight)
+        ))
 
-        // 一次滚了 600 px（超过帧高 70% = 350），重叠带已经不在新帧里。
+        // 上一次停在 300…800，下一次跳到 900：一次滚了 600 px（超过帧高 70% = 350），
+        // 重叠带已经不在新帧里。
         let jumped = try ImageCropper.crop(
             source,
-            to: CGRect(x: 0, y: 600, width: width, height: frameHeight)
+            to: CGRect(x: 0, y: 900, width: width, height: frameHeight)
         )
         #expect(stitcher.append(jumped) == .rejectedJump)
-        #expect(stitcher.totalHeight == frameHeight)
+        #expect(stitcher.totalHeight == frameHeight + scrollDelta)
+    }
+
+    /// 起采时抓到的过渡帧（切换窗口 / 台前调度滑入动画里的桌面）不能成为永久基线：
+    /// 下一帧真实内容对不上时应换基线，之后的滚动照常拼。
+    @Test func unconfirmedFirstFrameIsReplacedByStableFrame() throws {
+        let desktop = try makeStrip(height: 1700, phase: 53)
+        let source = try makeStrip(height: 1700)
+        var stitcher = try #require(ScrollStitcher(width: width, frameHeight: frameHeight))
+
+        _ = stitcher.append(try ImageCropper.crop(
+            desktop,
+            to: CGRect(x: 0, y: 0, width: width, height: frameHeight)
+        ))
+        // 舞台动画期间可能连续抓到两张相同的桌面：重复帧不能把桌面确认为基线。
+        #expect(stitcher.append(try ImageCropper.crop(
+            desktop,
+            to: CGRect(x: 0, y: 0, width: width, height: frameHeight)
+        )) == .duplicate)
+        #expect(
+            stitcher.append(try ImageCropper.crop(
+                source,
+                to: CGRect(x: 0, y: 0, width: width, height: frameHeight)
+            )) == .appended(offset: 0, totalHeight: frameHeight)
+        )
+
+        // 换完基线后照常向下拼。
+        let appended = stitcher.append(try ImageCropper.crop(
+            source,
+            to: CGRect(x: 0, y: scrollDelta, width: width, height: frameHeight)
+        ))
+        guard case .appended = appended else {
+            Issue.record("换基线后应继续拼接，实际为 \(appended)")
+            return
+        }
+        let stitched = try #require(stitcher.makeImage())
+        #expect(stitched.height == frameHeight + scrollDelta)
+        // 结果开头来自稳定帧，不是桌面过渡帧。
+        let expected = try ImageCropper.crop(
+            source,
+            to: CGRect(x: 0, y: 0, width: width, height: frameHeight + scrollDelta)
+        )
+        #expect(try maxChannelDifference(stitched, expected) <= 1)
     }
 
     @Test func stopsAtMaximumHeight() throws {
@@ -155,13 +203,14 @@ struct ScrollStitcherTests {
     // MARK: - 合成图
 
     /// 生成一张「每行都不重复」的竖向条纹图，避免匹配算法被重复纹理误导。
-    private func makeStrip(height: Int) throws -> CGImage {
+    /// `phase` 换一套行色，用来模拟完全不同的画面（桌面 vs 窗口内容）。
+    private func makeStrip(height: Int, phase: Int = 0) throws -> CGImage {
         var bytes = [UInt8](repeating: 0, count: width * height * 4)
         for row in 0..<height {
             // 行内固定色，行与行之间用两套不同周期的函数区分，保证每行唯一。
-            let r = UInt8((row * 7) % 251)
-            let g = UInt8((row * 13 + 40) % 241)
-            let b = UInt8((row * 29 + 90) % 233)
+            let r = UInt8((row * 7 + phase * 11) % 251)
+            let g = UInt8((row * 13 + 40 + phase * 17) % 241)
+            let b = UInt8((row * 29 + 90 + phase * 23) % 233)
             for column in 0..<width {
                 let index = (row * width + column) * 4
                 let stripe = UInt8((column / 7) % 2 == 0 ? 0 : 24)
