@@ -84,25 +84,59 @@ final class EditorModel {
 
     /// 第一次开启带壳时用的样式。
     ///
-    /// 两层来源，后者覆盖前者：
+    /// 来源有两层影响，后者覆盖前者：
     /// 1. 用户上次调过的样式（`ScreenshotFramePreferences`）；
-    /// 2. 来源例外：窗口截图改用「仅阴影」，否则图里的交通灯会和壳上的叠成双层。
+    /// 2. 来源约束：窗口截图只能用「仅阴影」，见 `applyDefaultFrameStyle(for:)`。
     private(set) var defaultFrameStyle: ScreenshotFrameStyle
 
-    /// 告诉模型「这张图从哪来」，据此定首次开启带壳的样式。
+    /// 这张图的来源。带壳的壳形态受它约束，因此不能只存一个默认样式快照。
+    private(set) var source: ScreenshotSource = .region
+
+    /// 本来源下允许的壳形态。
     ///
-    /// 只改**默认样式**，不动已经选好的 `frameStyle`：
-    /// 用户手动挑过的样式不该被来源偷偷换掉。
-    /// 因此它必须在第一次 `setFrameEnabled(true)` 之前调用——
-    /// 浮层里的调用点就是在新建模型之后、用户能点之前（见 `SelectionOverlayController.beginEditing`）。
+    /// 窗口截图只给一档，popover 据此不画选择器，用户没有可选项。
+    var allowedChrome: [ScreenshotFrameStyle.Chrome] {
+        ScreenshotFrameStyle.allowedChrome(for: source)
+    }
+
+    /// 告诉模型「这张图从哪来」，据此约束壳形态。
+    ///
+    /// 窗口截图**只有「仅阴影」**：它的画面里已经有红黄绿了。
+    /// 这不只是默认值——后面 `setFrameStyle` 也会把越界的壳形态拉回来，
+    /// 所以用户没法从 popover、`⌘B` 或偏好记忆里绕开这个约束。
+    ///
+    /// 必须在首次开启带壳之前调用：
+    /// 浮层里的调用点就在新建模型之后、用户能点之前（见 `SelectionOverlayController.beginEditing`）。
     func applyDefaultFrameStyle(for source: ScreenshotSource) {
-        guard frameStyle == nil else { return }
-        // 先在「上次样式」上改：用户调过的背景 / 边距 / 标题要留着，
-        // 只把窗口来源的壳形态换成仅阴影。
-        guard source == .window else { return }
+        self.source = source
+
+        let allowed = allowedChrome
+        // 上次的样式作为基底：用户调过的背景 / 边距 / 标题要留着。
         var style = defaultFrameStyle
-        style.chrome = .shadowOnly
+        if !allowed.contains(style.chrome) {
+            style.chrome = allowed.first ?? .shadowOnly
+        }
         defaultFrameStyle = style
+
+        // 已经开着带壳时也一并纠偏（例如从偏好恢复出来的、不可用的壳形态）。
+        if var active = frameStyle, !allowed.contains(active.chrome) {
+            active.chrome = allowed.first ?? .shadowOnly
+            frameStyle = active
+            rememberFrameStyle()
+        }
+    }
+
+    /// 把越界的壳形态拉回本来源允许的那一档。
+    ///
+    /// `setFrameStyle` 是唯一的写入口（popover / 偏好恢复都走它），
+    /// 在这里做一次归一，就能保证 `frameStyle.chrome` 永远是合法的，
+    /// 不必让每个调用点各写一遍。
+    private func normalized(_ style: ScreenshotFrameStyle) -> ScreenshotFrameStyle {
+        let allowed = allowedChrome
+        guard !allowed.contains(style.chrome) else { return style }
+        var fixed = style
+        fixed.chrome = allowed.first ?? .shadowOnly
+        return fixed
     }
 
     /// 把当前样式记进偏好，供下次开启时沿用。
@@ -125,8 +159,9 @@ final class EditorModel {
             frameStyle = nil
             return
         }
-        frameStyle = style
-        defaultFrameStyle = style
+        let safe = normalized(style)
+        frameStyle = safe
+        defaultFrameStyle = safe
         rememberFrameStyle()
     }
 

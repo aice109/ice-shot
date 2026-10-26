@@ -124,19 +124,7 @@ struct ScreenshotFramePopover: View {
 
     private var styleControls: some View {
         VStack(alignment: .leading, spacing: Self.sectionSpacing) {
-            labeledPicker(String(localized: "样式"), selection: chromeBinding) {
-                ForEach(ScreenshotFrameStyle.Chrome.allCases, id: \.self) { chrome in
-                    Text(chrome.title).tag(chrome)
-                }
-            }
-
-            // 窗口来源的图自带交通灯，切回「窗口」就是双层；给出原因，不让用户猜。
-            if style.chrome == .window, model.defaultFrameStyle.chrome == .shadowOnly {
-                Text("这张图本身是窗口截图，用「窗口」会出现双层交通灯。")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            chromeSection
 
             labeledPicker(String(localized: "外观"), selection: appearanceBinding) {
                 ForEach(ScreenshotFrameStyle.Appearance.allCases, id: \.self) { appearance in
@@ -191,6 +179,31 @@ struct ScreenshotFramePopover: View {
                 .pickerStyle(.segmented)
                 .labelsHidden()
                 .accessibilityLabel(title)
+        }
+    }
+
+    /// 壳形态。窗口截图只有一档：不画选择器，直接说明为什么。
+    @ViewBuilder
+    private var chromeSection: some View {
+        let options = model.allowedChrome
+        if options.count > 1 {
+            labeledPicker(String(localized: "样式"), selection: chromeBinding) {
+                ForEach(options, id: \.self) { chrome in
+                    Text(chrome.title).tag(chrome)
+                }
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("样式")
+                    .font(.callout)
+                Text(options.first?.title ?? ScreenshotFrameStyle.Chrome.shadowOnly.title)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                Text("这张图本身已是窗口截图，自带红黄绿，只提供「仅阴影」。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 

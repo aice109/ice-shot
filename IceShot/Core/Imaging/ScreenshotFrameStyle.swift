@@ -9,6 +9,10 @@ import Foundation
 /// 标记 `nonisolated`：渲染器（`ScreenshotFrameComposer`）在非主 actor 上读它。
 nonisolated struct ScreenshotFrameStyle: Hashable, Sendable {
     /// 壳形态。
+    ///
+    /// 注意：能选哪些**不由用户决定**，而由截图的来源决定。
+    /// 窗口截图里已经带着自己的红黄绿，再套一层窗口壳就是双层交通灯，
+    /// 所以那种图只允许 `.shadowOnly`（见 `ScreenshotFrameStyle.allowedChrome(for:)`）。
     enum Chrome: String, CaseIterable, Hashable, Sendable {
         /// macOS 窗口：标题栏 + 红黄绿交通灯 + 可选标题。
         case window
@@ -22,6 +26,15 @@ nonisolated struct ScreenshotFrameStyle: Hashable, Sendable {
             case .shadowOnly: return String(localized: "仅阴影")
             }
         }
+    }
+
+    /// 某个来源下允许的壳形态。
+    ///
+    /// 窗口截图只有一档：它的画面里已经有交通灯了。
+    /// 其它来源两档都行。返回数组而非单个值，是为了让 popover 能直接
+    /// 决定「只显示一项时就不画选择器」。
+    static func allowedChrome(for source: ScreenshotSource) -> [Chrome] {
+        source == .window ? [.shadowOnly] : Chrome.allCases
     }
 
     /// 窗口外观。自动模式按截图顶部亮度决定，不读系统外观。

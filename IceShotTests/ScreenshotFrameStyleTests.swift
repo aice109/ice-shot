@@ -53,22 +53,48 @@ struct ScreenshotFrameStyleTests {
         }
     }
 
-    @Test("已选好的样式不会被来源默认覆盖")
-    func explicitStyleWins() throws {
+    @Test("窗口截图不能把壳形态改回「窗口」")
+    func windowSourceRejectsWindowChrome() throws {
         let model = makeModel(try makeImage(), title: "测试")
         model.applyDefaultFrameStyle(for: .window)
         model.setFrameEnabled(true)
 
-        // 用户手动切回「窗口」。
+        // 尝试绕过约束：直接写一个带窗口壳的样式（例如从偏好恢复出来的旧值）。
         var custom = try #require(model.frameStyle)
         custom.chrome = .window
         custom.background = .ocean
         model.setFrameStyle(custom)
 
-        // 已开着带壳时再声明来源，不应把用户的选择抹掉。
-        model.applyDefaultFrameStyle(for: .window)
-        #expect(model.frameStyle?.chrome == .window)
+        // 壳形态被拉回仅阴影；其它字段（用户调过的背景）不受影响。
+        #expect(model.frameStyle?.chrome == .shadowOnly)
         #expect(model.frameStyle?.background == .ocean)
+    }
+
+    @Test("窗口截图只提供一档壳形态")
+    func windowSourceHasSingleChromeOption() throws {
+        let model = makeModel(try makeImage(), title: "测试")
+        model.applyDefaultFrameStyle(for: .window)
+        #expect(model.allowedChrome == [.shadowOnly])
+
+        let regionModel = makeModel(try makeImage(), title: "测试")
+        regionModel.applyDefaultFrameStyle(for: .region)
+        #expect(regionModel.allowedChrome.count == 2)
+    }
+
+    @Test("区域截图仍可以自由选壳形态")
+    func regionSourceKeepsBothChromes() throws {
+        let model = makeModel(try makeImage(), title: "测试")
+        model.applyDefaultFrameStyle(for: .region)
+        model.setFrameEnabled(true)
+
+        var custom = try #require(model.frameStyle)
+        custom.chrome = .shadowOnly
+        model.setFrameStyle(custom)
+        #expect(model.frameStyle?.chrome == .shadowOnly)
+
+        custom.chrome = .window
+        model.setFrameStyle(custom)
+        #expect(model.frameStyle?.chrome == .window)
     }
 
     @Test("来源声明只改默认样式，不改当前状态")
