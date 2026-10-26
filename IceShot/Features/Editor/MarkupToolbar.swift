@@ -474,7 +474,7 @@ struct MarkupToolbar: View {
             iconOnly(symbol: "macwindow")
         }
         .glassControlStyle(prominent: model.isFrameEnabled, clear: true)
-        .help(model.isFrameEnabled ? "带壳已开启（点击调整）" : "带壳：给截图加 macOS 窗口壳")
+        .help(model.isFrameEnabled ? "带壳已开启（⌘B 关闭）" : "带壳：给截图加 macOS 窗口壳（⌘B）")
         .accessibilityLabel("带壳")
         .accessibilityAddTraits(model.isFrameEnabled ? [.isSelected] : [])
         .popover(isPresented: $isFramePopoverPresented, arrowEdge: .bottom) {

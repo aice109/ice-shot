@@ -1,4 +1,5 @@
 import CoreGraphics
+import Foundation
 import Testing
 @testable import IceShot
 
@@ -15,14 +16,14 @@ struct ScreenshotFrameStyleTests {
 
     @Test("新建模型默认不带壳")
     func defaultIsDisabled() throws {
-        let model = EditorModel(image: try makeImage(), title: "测试")
+        let model = makeModel(try makeImage(), title: "测试")
         #expect(model.frameStyle == nil)
         #expect(!model.isFrameEnabled)
     }
 
     @Test("区域截图首次开启用完整窗口壳")
     func regionDefaultsToWindowChrome() throws {
-        let model = EditorModel(image: try makeImage(), title: "测试")
+        let model = makeModel(try makeImage(), title: "测试")
         model.applyDefaultFrameStyle(for: .region)
         model.setFrameEnabled(true)
 
@@ -32,7 +33,7 @@ struct ScreenshotFrameStyleTests {
 
     @Test("窗口截图首次开启用「仅阴影」")
     func windowDefaultsToShadowOnly() throws {
-        let model = EditorModel(image: try makeImage(), title: "测试")
+        let model = makeModel(try makeImage(), title: "测试")
         model.applyDefaultFrameStyle(for: .window)
         model.setFrameEnabled(true)
 
@@ -43,7 +44,7 @@ struct ScreenshotFrameStyleTests {
     @Test("其它来源保持默认窗口壳")
     func otherSourcesKeepWindowChrome() throws {
         for source in [ScreenshotSource.region, .display, .allDisplays, .scroll] {
-            let model = EditorModel(image: try makeImage(), title: "测试")
+            let model = makeModel(try makeImage(), title: "测试")
             model.applyDefaultFrameStyle(for: source)
             model.setFrameEnabled(true)
 
@@ -54,7 +55,7 @@ struct ScreenshotFrameStyleTests {
 
     @Test("已选好的样式不会被来源默认覆盖")
     func explicitStyleWins() throws {
-        let model = EditorModel(image: try makeImage(), title: "测试")
+        let model = makeModel(try makeImage(), title: "测试")
         model.applyDefaultFrameStyle(for: .window)
         model.setFrameEnabled(true)
 
@@ -72,7 +73,7 @@ struct ScreenshotFrameStyleTests {
 
     @Test("来源声明只改默认样式，不改当前状态")
     func sourceDeclarationDoesNotEnableFrame() throws {
-        let model = EditorModel(image: try makeImage(), title: "测试")
+        let model = makeModel(try makeImage(), title: "测试")
         model.applyDefaultFrameStyle(for: .window)
 
         // 声明来源≠开启带壳：每次截图仍然默认关闭。
@@ -86,7 +87,7 @@ struct ScreenshotFrameStyleTests {
 
     @Test("逐项改样式都能读回原值")
     func styleRoundTripsEveryField() throws {
-        let model = EditorModel(image: try makeImage(), title: "测试")
+        let model = makeModel(try makeImage(), title: "测试")
         model.setFrameEnabled(true)
 
         var style = try #require(model.frameStyle)
@@ -103,9 +104,9 @@ struct ScreenshotFrameStyleTests {
         #expect(readBack.title == "示例窗口")
     }
 
-    @Test("关掉再打开保留上次的详细样式")
-    func togglingKeepsLastStyle() throws {
-        let model = EditorModel(image: try makeImage(), title: "测试")
+    @Test("关掉再开启回到刚改过的样式，不是会话开始时的旧值")
+    func togglingKeepsLastEditedStyle() throws {
+        let model = makeModel(try makeImage(), title: "测试")
         model.setFrameEnabled(true)
 
         var style = try #require(model.frameStyle)
@@ -117,9 +118,9 @@ struct ScreenshotFrameStyleTests {
         #expect(model.frameStyle == nil)
 
         model.setFrameEnabled(true)
-        // 关掉会把 `frameStyle` 置空，重新开启回到默认——这是既有语义，
-        // 真正的「跨次记住」由 M4 的偏好层负责。
-        #expect(model.frameStyle?.background == ScreenshotFrameStyle.default.background)
+        // 用户刚调好的背景不该因为一次开关就丢掉。
+        #expect(model.frameStyle?.background == .sunrise)
+        #expect(model.frameStyle?.padding == .small)
     }
 
     @Test("样式档位全部可枚举，不会漏掉新增项")
@@ -166,11 +167,11 @@ struct ScreenshotFrameStyleTests {
     func windowDefaultExportsShorter() throws {
         let content = try makeImage(width: 1000, height: 600)
 
-        let regionModel = EditorModel(image: content, title: "区域")
+        let regionModel = makeModel(content, title: "区域")
         regionModel.applyDefaultFrameStyle(for: .region)
         regionModel.setFrameEnabled(true)
 
-        let windowModel = EditorModel(image: content, title: "窗口")
+        let windowModel = makeModel(content, title: "窗口")
         windowModel.applyDefaultFrameStyle(for: .window)
         windowModel.setFrameEnabled(true)
 
@@ -183,6 +184,32 @@ struct ScreenshotFrameStyleTests {
     }
 
     // MARK: - 辅助
+
+    /// 建模型时把带壳偏好指向一个**随机空域**。
+    ///
+    /// 不隔离的后果很实在：一个用例存了 `shadowOnly`，下一个用例的
+    /// 「区域截图默认窗口壳」就会默默挂掉——而且顺序一变就时红时绿。
+    /// 这里显式传 `UserDefaults(suiteName:)`，不碰 `.standard`。
+    private func makeModel(
+        _ image: CGImage,
+        title: String,
+        defaults: UserDefaults? = nil
+    ) -> EditorModel {
+        EditorModel(
+            image: image,
+            title: title,
+            framePreferenceDefaults: defaults ?? Self.isolatedDefaults()
+        )
+    }
+
+    private static func isolatedDefaults() -> UserDefaults {
+        let suiteName = "IceShotTests.FrameStyle.\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            Issue.record("无法创建隔离的 UserDefaults 域：\(suiteName)")
+            return .standard
+        }
+        return defaults
+    }
 
     private func makeImage(width: Int = 400, height: Int = 300) throws -> CGImage {
         let colorSpace = try #require(CGColorSpace(name: CGColorSpace.sRGB))

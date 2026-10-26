@@ -206,6 +206,10 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
             case "p" where commandFlags.contains(.shift):
                 pinAction()
                 return true
+            case "b" where commandFlags.contains(.shift) == false && commandFlags.contains(.control) == false:
+                // ⌘B 快速开关带壳：只切换开关，详细样式在 popover 里调。
+                model.setFrameEnabled(!model.isFrameEnabled)
+                return true
             case "t" where commandFlags.contains(.shift):
                 model.setTextPicking(!model.isTextPicking)
                 return true

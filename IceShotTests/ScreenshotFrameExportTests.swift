@@ -1,5 +1,6 @@
 import AppKit
 import CoreGraphics
+import Foundation
 import Testing
 @testable import IceShot
 
@@ -79,7 +80,7 @@ struct ScreenshotFrameExportTests {
     @Test("编辑器带壳关闭：导出与原图逐像素一致")
     func editorExportWithoutFrameMatchesSource() throws {
         let source = try makeQuadrantImage()
-        let model = EditorModel(image: source, title: "测试")
+        let model = makeModel(source, title: "测试")
         #expect(!model.isFrameEnabled)
 
         let exported = try #require(model.exportImage())
@@ -91,7 +92,7 @@ struct ScreenshotFrameExportTests {
     @Test("编辑器带壳开启：导出比内容大一圈")
     func editorExportWithFrameGrows() throws {
         let source = try makeSolidImage(width: 1000, height: 600)
-        let model = EditorModel(image: source, title: "测试")
+        let model = makeModel(source, title: "测试")
 
         model.setFrameEnabled(true)
         let exported = try #require(model.exportImage())
@@ -104,7 +105,7 @@ struct ScreenshotFrameExportTests {
     @Test("浮层路径：裁剪矩形必须传进导出，壳才会按选区尺寸生成")
     func editorExportAppliesCropBeforeFrame() throws {
         let source = try makeQuadrantImage()   // 1000 × 1000
-        let model = EditorModel(image: source, title: "测试")
+        let model = makeModel(source, title: "测试")
         model.setFrameEnabled(true)
 
         // 只留左上 500 × 400 那一块。
@@ -127,7 +128,7 @@ struct ScreenshotFrameExportTests {
     @Test("漏传裁剪：成品尺寸会按整图算，明显大于选区版")
     func editorExportWithoutCropIsLarger() throws {
         let source = try makeQuadrantImage()
-        let model = EditorModel(image: source, title: "测试")
+        let model = makeModel(source, title: "测试")
         model.setFrameEnabled(true)
 
         let cropped = try #require(
@@ -143,7 +144,7 @@ struct ScreenshotFrameExportTests {
     @Test("关掉带壳后导出恢复原图")
     func editorExportRestoresAfterDisabling() throws {
         let source = try makeQuadrantImage()
-        let model = EditorModel(image: source, title: "测试")
+        let model = makeModel(source, title: "测试")
 
         model.setFrameEnabled(true)
         model.setFrameEnabled(false)
@@ -156,7 +157,7 @@ struct ScreenshotFrameExportTests {
     @Test("带壳不改动模型里的原图与撤销栈")
     func frameDoesNotTouchModelImage() throws {
         let source = try makeQuadrantImage()
-        let model = EditorModel(image: source, title: "测试")
+        let model = makeModel(source, title: "测试")
         model.attachUndoManager(UndoManager())
 
         model.setFrameEnabled(true)
@@ -172,7 +173,7 @@ struct ScreenshotFrameExportTests {
     @Test("带壳只影响导出，不影响 renderedImage()")
     func renderedImageStaysFrameless() throws {
         let source = try makeSolidImage(width: 200, height: 100)
-        let model = EditorModel(image: source, title: "测试")
+        let model = makeModel(source, title: "测试")
         model.setFrameEnabled(true)
 
         let rendered = try #require(model.renderedImage())
@@ -214,6 +215,20 @@ struct ScreenshotFrameExportTests {
     }
 
     // MARK: - 辅助
+
+    /// 同 `ScreenshotFrameStyleTests`：带壳偏好必须指向随机空域，不能碰 `.standard`。
+    private func makeModel(_ image: CGImage, title: String) -> EditorModel {
+        let suiteName = "IceShotTests.FrameExport.\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            Issue.record("无法创建隔离的 UserDefaults 域：\(suiteName)")
+            return EditorModel(image: image, title: title)
+        }
+        return EditorModel(
+            image: image,
+            title: title,
+            framePreferenceDefaults: defaults
+        )
+    }
 
     /// 与 `CaptureCoordinator.framedBatch` 同构的纯函数，供测试在不上 UI 的前提下验证约定。
     private static func applyFrame(

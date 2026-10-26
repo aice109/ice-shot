@@ -70,7 +70,7 @@ final class EditorModel {
 
     var isFrameEnabled: Bool { frameStyle != nil }
 
-    /// 开关带壳。开启时保留上次的详细样式；第一次开启用 `defaultFrameStyle`。
+    /// 开关带壳。开启时沿用上次用过的详细样式（`defaultFrameStyle`）。
     func setFrameEnabled(_ enabled: Bool) {
         if enabled {
             frameStyle = frameStyle ?? defaultFrameStyle
@@ -81,26 +81,50 @@ final class EditorModel {
 
     /// 第一次开启带壳时用的样式。
     ///
-    /// 窗口来源的截图改成「仅阴影」：图里已经有自己的交通灯，
-    /// 再加一层窗口壳就会得到双层红黄绿。
-    private(set) var defaultFrameStyle: ScreenshotFrameStyle = .default
+    /// 两层来源，后者覆盖前者：
+    /// 1. 用户上次调过的样式（`ScreenshotFramePreferences`）；
+    /// 2. 来源例外：窗口截图改用「仅阴影」，否则图里的交通灯会和壳上的叠成双层。
+    private(set) var defaultFrameStyle: ScreenshotFrameStyle
 
-    /// 告诉模型「这张图本来就是窗口截图」，首次开启带壳时用「仅阴影」。
+    /// 告诉模型「这张图从哪来」，据此定首次开启带壳的样式。
     ///
     /// 只改**默认样式**，不动已经选好的 `frameStyle`：
     /// 用户手动挑过的样式不该被来源偷偷换掉。
     /// 因此它必须在第一次 `setFrameEnabled(true)` 之前调用——
     /// 浮层里的调用点就是在新建模型之后、用户能点之前（见 `SelectionOverlayController.beginEditing`）。
     func applyDefaultFrameStyle(for source: ScreenshotSource) {
-        guard source == .window, frameStyle == nil else { return }
-        var style = ScreenshotFrameStyle.default
+        guard frameStyle == nil else { return }
+        // 先在「上次样式」上改：用户调过的背景 / 边距 / 标题要留着，
+        // 只把窗口来源的壳形态换成仅阴影。
+        guard source == .window else { return }
+        var style = defaultFrameStyle
         style.chrome = .shadowOnly
         defaultFrameStyle = style
     }
 
+    /// 把当前样式记进偏好，供下次开启时沿用。
+    ///
+    /// 只在**带壳开着**时调用：关闭带壳不该把「怎么关的」写进去，
+    /// 下次开启仍然该拿到上次真正用过的样式。
+    func rememberFrameStyle() {
+        guard let frameStyle else { return }
+        ScreenshotFramePreferences.save(frameStyle, to: framePreferenceDefaults)
+    }
+
     /// 替换整套带壳样式；传 `nil` 等价于关闭。
+    ///
+    /// 顺手做两件事：
+    /// - 记进偏好，下次开新截图时沿用；
+    /// - 同步 `defaultFrameStyle`，让「关掉再开启」回到刚改过的样式，
+    ///   而不是回到本次会话开始时那份旧的。
     func setFrameStyle(_ style: ScreenshotFrameStyle?) {
+        guard let style else {
+            frameStyle = nil
+            return
+        }
         frameStyle = style
+        defaultFrameStyle = style
+        rememberFrameStyle()
     }
 
     @ObservationIgnored var onToolChange: ((EditorTool) -> Void)?
@@ -117,9 +141,21 @@ final class EditorModel {
     private var attachedUndoManager: UndoManager?
     private let fallbackUndoManager = UndoManager()
 
-    init(image: CGImage, title: String) {
+    /// 带壳偏好的存取目标。
+    ///
+    /// 故意可注入：测试必须能隔离，否则「记住样式」会跨用例泄漏——
+    /// 一个用例存了 `shadowOnly`，下一个用例的「默认窗口壳」就默默挂了。
+    @ObservationIgnored private let framePreferenceDefaults: UserDefaults
+
+    init(
+        image: CGImage,
+        title: String,
+        framePreferenceDefaults: UserDefaults = .standard
+    ) {
         self.image = image
         self.title = title
+        self.framePreferenceDefaults = framePreferenceDefaults
+        self.defaultFrameStyle = ScreenshotFramePreferences.style(from: framePreferenceDefaults) ?? .default
         // 每个用户动作自己成组（见 `registerUndo`），不按事件循环自动合并，
         // 否则「改文字 + 紧接着画一笔」会变成同一个撤销步骤。
         fallbackUndoManager.groupsByEvent = false
