@@ -138,6 +138,8 @@ scope 用中文功能名（`编辑器`、`长截图`、`设置`），或脚本�
 | 做任何界面、浮层、材质、颜色、动效、图标 | [docs/ui-guidelines.md](docs/ui-guidelines.md) |
 | 改光标行为、查某个光标长什么样 | [docs/cursors.md](docs/cursors.md) |
 | 改截取 / 标注 / 历史 / 贴图 / OCR 行为 | [docs/architecture.md](docs/architecture.md) 对应章节 |
+| 改截图带壳（窗口壳） | [docs/screenshot-frame.md](docs/screenshot-frame.md) |
+| 改设备壳（MacBook 外框） | [docs/screenshot-device-frame.md](docs/screenshot-device-frame.md) |
 | 发版、改版本号、写 CHANGELOG | [docs/engineering.md](docs/engineering.md) 的发布一节 |
 
 ---
