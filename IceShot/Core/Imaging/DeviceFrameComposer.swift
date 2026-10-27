@@ -6,41 +6,65 @@ import Foundation
 /// 纯 CoreGraphics，不依赖 SwiftUI / AppKit，与 `ScreenshotFrameComposer` 同一条理由：
 /// 预览与导出共用同一个渲染器，避免「预览好看、导出不一样」。
 ///
-/// 几何分三层：**内容 → 屏幕 → 机身**。窗口壳只有前两层的一部分（内容 + 一圈留白），
-/// 这里多出机身与刘海，因此不复用它的布局代码，只复用背景渐变与投影参数。
+/// 几何分三层：**内容 → 屏幕（黑边 + 挖孔）→ 机身（铝框）**。
+/// 窗口壳只有「内容 + 一圈留白」，这里多出机身与刘海，因此不复用它的布局代码，
+/// 只复用背景渐变。
 nonisolated enum DeviceFrameComposer {
-    /// 以“内容宽 1000 px”为 1u 基准。与窗口壳同一套换算，便于两个渲染器互相对齐。
+    /// 以「屏幕有效显示区宽 1000 px」为 1u 基准，与窗口壳同一套换算。
     private static let contentWidthForUnit: CGFloat = 1000
+
+    /// 内容宽 → u。
+    ///
+    /// **不设上限**：机身比例必须与内容宽度成固定比例，否则 3024 px 的 Retina 全屏截图
+    /// 会被压成「黑边和刘海都偏小」的假机器。只在极小的内容上兜底，避免边框吃掉半张图。
+    private static func contentUnit(forWidth width: CGFloat) -> CGFloat {
+        max(width / contentWidthForUnit, 0.8)
+    }
 
     /// 各比例的几何值（单位 u）。集中放在一处，改视觉规格只动这里。
     ///
-    /// 这些值是对着真机观感调的，不是按毫米精确换算：
-    /// 真机 14" 的黑边约 3.5 mm，但在 1000 px 宽的内容上如果按真实比例画只有 6 px，
-    /// 导出图里几乎看不见，成品像「一张图贴在白框里」而不是一台电脑。
-    /// 所以黑边、刘海都适当放大，优先保证观感识别度。
+    /// 基准是 **14 吋 MacBook Pro（M4 / M5）** 的实物比例：
+    /// 有效显示区 3024×1964 px @254 ppi ≈ 302.4×196.4 mm，
+    /// 机身 312.6×221.2 mm（机身深度含铰链，屏幕面本身约 215 mm 高）。
+    /// 于是 1u ≈ 0.302 mm，下面的毫米注释都由这个比例换算而来。
+    ///
+    /// 这些值不是「照毫米精确缩小」：真机侧面黑边只有 3.4 mm，
+    /// 在 1000 px 宽的内容上如果按真实像素直译只有 11 px——这正好是这里取的 11.5u，
+    /// 所以本次不再放大黑边，而是按真实比例画，靠**比例正确**而不是「加粗」来像。
     private enum Metrics {
-        /// 外机身圆角。真机外沿很圆。
-        static let bodyCornerRadius: CGFloat = 30
-        /// 屏幕圆角。
+        /// 机身外圆角。真机外沿约 13 mm，且是连续曲率（squircle），不是正圆弧。
+        static let bodyCornerRadius: CGFloat = 44
+        /// 连续曲率的方次。2 是正圆，越大转角越「饱满」；3 接近 Apple 硬件的观感。
+        static let squircleExponent: CGFloat = 3
+        /// 铝框正面宽度（机身外沿到黑色玻璃外沿）：真机约 1.7 mm。
         ///
-        /// **只有上面两个角是圆的**——最新 MacBook 的屏幕是「上圆下方」。
-        /// 必须**明显大于黑边厚度**（bezel 16），否则圆角整段被黑边吃掉、肉眼看不出来。
-        /// 取 34，扣掉黑边后仍有约 18u 的可见弧度。
-        static let screenCornerTop: CGFloat = 34
-        /// 屏幕黑边（机身内沿到屏幕边）。
-        static let bezel: CGFloat = 16
-        /// 机身边框（屏幕外沿到机身外沿）：让机身比屏幕大一圈，否则黑屏会盖满整块机身。
-        static let bodyRim: CGFloat = 8
-        /// 刘海宽 / 高。
+        /// 这是「像不像」的关键：老版画到 8u（2.4 mm）还配一圈纯白高光，
+        /// 结果机身读成一只白色相框，而不是一台黑色玻璃面的电脑。
+        static let rim: CGFloat = 5.5
+        /// 左右黑边：真机 3.4 mm。
+        static let bezelSide: CGFloat = 11.5
+        /// 上黑边：与左右同宽，刘海从这条边往下挖。
+        static let bezelTop: CGFloat = 11.5
+        /// 下黑边（下巴）：真机明显比另外三边宽，约 11.5 mm。
         ///
-        /// 真机刘海约占屏宽 11%～12%。第一版画 56u 太小，像个小方标签；
-        /// 取 116×24u，配四角圆角，才像一次真正的挖孔。
-        static let notchWidth: CGFloat = 116
-        static let notchHeight: CGFloat = 24
-        /// 刘海四角圆角半径（相对高度，约 0.45 倍）。
-        static var notchCorner: CGFloat { notchHeight * 0.45 }
-        /// 下巴（屏幕下沿到机身下沿）。
-        static let chin: CGFloat = 22
+        /// 注意黑边与铝框是两回事：下巴 = 38u 黑边 + 5.5u 铝框 ≈ 13 mm。
+        static let bezelBottom: CGFloat = 38
+        /// 玻璃圆角 = 机身圆角 - 铝框宽度。
+        ///
+        /// 两个圆角必须**同心**，铝框在转角处才是等宽的。
+        /// 老版把屏幕圆角（34u）画得比机身圆角（30u）还大，转角直接鼓出来一块。
+        static var glassCornerRadius: CGFloat { bodyCornerRadius - rim }
+        /// 屏幕有效显示区上圆角。真机面板只有上面两角是圆的，下面两角是直角。
+        ///
+        /// 这个圆角由面板切割决定，比玻璃圆角小一圈（约 6.7 mm）。
+        static let panelCornerTop: CGFloat = 22
+        /// 刘海：14 吋真机 185×32 pt @2x = 370×64 px ≈ 37×6.4 mm。
+        static let notchWidth: CGFloat = 122
+        static let notchHeight: CGFloat = 21
+        /// 刘海底部两角圆角（顶部与上黑边连成一体，不需要圆角）。
+        static let notchCorner: CGFloat = 7
+        /// 摄像头开孔直径。太小会像噪点，这个尺寸在 100% 下刚好是一颗镜头。
+        static let cameraDiameter: CGFloat = 4
     }
 
     /// 渲染。
@@ -49,32 +73,27 @@ nonisolated enum DeviceFrameComposer {
     ///   - content: 已经渲染好标注、并且**已经按选区裁剪**的整屏内容图。
     ///   - style: 设备壳样式。
     ///   - maximumDimension: 预览用，长边不超过该值；导出时不传。
+    ///   - notchHeightInUnits: 刘海高度覆盖值（u）。
+    ///     调用方知道来源显示器的菜单栏高度时传进来，让刘海底边与截图里的菜单栏对齐；
+    ///     `nil` 时用 14 吋真机值（21u）。外接屏的菜单栏通常比真机矮，固定 21u 会压过菜单栏底边。
     static func render(
         _ content: CGImage,
         style: DeviceFrameStyle,
-        maximumDimension: Int? = nil
+        maximumDimension: Int? = nil,
+        notchHeightInUnits: CGFloat? = nil
     ) throws -> CGImage {
         guard content.width > 0, content.height > 0 else {
             throw CaptureError.encodingFailed
         }
 
         // 以内容宽度定 1u；太小的图限制下限，避免机身占掉半张图。
-        let unit = min(max(CGFloat(content.width) / contentWidthForUnit, 0.8), 2.0)
-
-        let bezel = Metrics.bezel * unit
-        let notchWidth = Metrics.notchWidth * unit
-        let notchHeight = Metrics.notchHeight * unit
-        let chin = Metrics.chin * unit
-        let rim = Metrics.bodyRim * unit
+        let unit = contentUnit(forWidth: CGFloat(content.width))
         let paddingBase = style.padding.baseValue * unit
-
-        // 三层：内容 → 屏幕（内容 + 黑边）→ 机身（屏幕 + 边框 + 下下巴）。
-        let screenWidthBase = CGFloat(content.width) + bezel * 2
-        let screenHeightBase = CGFloat(content.height) + bezel * 2
-        let bodyWidthBase = screenWidthBase + rim * 2
-        let bodyHeightBase = screenHeightBase + rim * 2 + chin
-        let outputWidthBase = bodyWidthBase + paddingBase * 2
-        let outputHeightBase = bodyHeightBase + paddingBase * 2
+        let lidBase = lidSize(
+            for: CGSize(width: content.width, height: content.height)
+        )
+        let outputWidthBase = lidBase.width + paddingBase * 2
+        let outputHeightBase = lidBase.height + paddingBase * 2
 
         var fit: CGFloat = 1
         if let maximumDimension, maximumDimension > 0 {
@@ -85,17 +104,7 @@ nonisolated enum DeviceFrameComposer {
         }
 
         let scale = unit * fit
-        let scaledBezel = bezel * fit
-        let scaledRim = rim * fit
-        let scaledPadding = paddingBase * fit
-        let screenSize = CGSize(
-            width: screenWidthBase * fit,
-            height: screenHeightBase * fit
-        )
-        let bodySize = CGSize(
-            width: bodyWidthBase * fit,
-            height: bodyHeightBase * fit
-        )
+        let padding = paddingBase * fit
         let outputSize = CGSize(
             width: outputWidthBase * fit,
             height: outputHeightBase * fit
@@ -119,30 +128,44 @@ nonisolated enum DeviceFrameComposer {
         context.setAllowsAntialiasing(true)
         context.setShouldAntialias(true)
 
-        // 布局量全按左上原点算，绘制时翻成 CGContext 的左下原点。
-        func flipped(_ rect: CGRect) -> CGRect {
-            CGRect(
-                x: rect.minX,
-                y: CGFloat(pixelHeight) - rect.maxY,
-                width: rect.width,
-                height: rect.height
-            )
+        // 布局全部按左上原点算；绘制时统一乘一个竖直翻转矩阵。
+        let flip = CGAffineTransform(
+            a: 1, b: 0, c: 0, d: -1, tx: 0, ty: CGFloat(pixelHeight)
+        )
+        func add(_ path: CGPath) {
+            var transform = flip
+            guard let flippedPath = path.copy(using: &transform) else { return }
+            context.addPath(flippedPath)
+        }
+        func fill(_ path: CGPath, _ color: CGColor) {
+            context.setFillColor(color)
+            add(path)
+            context.fillPath()
+        }
+        func stroke(_ path: CGPath, _ color: CGColor, width: CGFloat) {
+            context.setStrokeColor(color)
+            context.setLineWidth(width)
+            add(path)
+            context.strokePath()
         }
 
+        // 三层矩形：机身 → 玻璃（含黑边）→ 内容。
         let bodyRect = CGRect(
-            x: scaledPadding,
-            y: scaledPadding,
-            width: bodySize.width,
-            height: bodySize.height
+            x: padding,
+            y: padding,
+            width: lidBase.width * fit,
+            height: lidBase.height * fit
         )
-        // screenRect 是**整个屏幕（含黑边）**；内容在它内部再居中。
-        // 曾经把这里写成「已扣黑边的内容区」，结果黑边从未被填充，
-        // 机身和内容直接相接，成品看起来像「一张图贴在白框里」。
-        let screenRect = CGRect(
-            x: bodyRect.minX + scaledRim,
-            y: bodyRect.minY + scaledRim,
-            width: screenSize.width,
-            height: screenSize.height
+        let rim = Metrics.rim * scale
+        let glassRect = bodyRect.insetBy(dx: rim, dy: rim)
+        let bezelSide = Metrics.bezelSide * scale
+        let bezelTop = Metrics.bezelTop * scale
+        let bezelBottom = Metrics.bezelBottom * scale
+        let contentRect = CGRect(
+            x: glassRect.minX + bezelSide,
+            y: glassRect.minY + bezelTop,
+            width: glassRect.width - bezelSide * 2,
+            height: glassRect.height - bezelTop - bezelBottom
         )
 
         // 1. 背景
@@ -155,170 +178,137 @@ nonisolated enum DeviceFrameComposer {
             )
         }
 
-        // 2. 机身形：投影 + 填充 + 金属渐变
-        let bodyPath = CGPath(
-            roundedRect: flipped(bodyRect),
-            cornerWidth: Metrics.bodyCornerRadius * scale,
-            cornerHeight: Metrics.bodyCornerRadius * scale,
-            transform: nil
-        )
         let palette = palette(for: style.finish)
+        let bodyPath = squirclePath(
+            bodyRect,
+            cornerRadius: Metrics.bodyCornerRadius * scale,
+            corners: .all,
+            exponent: Metrics.squircleExponent
+        )
+        let glassPath = squirclePath(
+            glassRect,
+            cornerRadius: Metrics.glassCornerRadius * scale,
+            corners: .all,
+            exponent: Metrics.squircleExponent
+        )
 
-        // 2a. 落影。真机照片里机身和桌面之间有明显分离，
-        //     所以模糊更大、向下偏移更明显，而不是轻轻一圈。
+        // 2a. 落影：近距离紧、远距离散，两层叠出环境光遮蔽。
         context.saveGState()
         if style.showsShadow {
             context.setShadow(
-                offset: CGSize(width: 0, height: -18 * scale),
-                blur: 46 * scale,
-                color: CGColor(gray: 0, alpha: 0.38)
+                offset: CGSize(width: 0, height: -16 * scale),
+                blur: 38 * scale,
+                color: CGColor(gray: 0, alpha: 0.36)
             )
-            // 第二层更散、更淡，做出环境光遮蔽的柔和过渡。
             context.setShadow(
-                offset: CGSize(width: 0, height: -30 * scale),
-                blur: 90 * scale,
-                color: CGColor(gray: 0, alpha: 0.18)
+                offset: CGSize(width: 0, height: -28 * scale),
+                blur: 82 * scale,
+                color: CGColor(gray: 0, alpha: 0.16)
             )
         }
-        context.setFillColor(palette.upper)
-        context.addPath(bodyPath)
-        context.fillPath()
+        fill(bodyPath, palette.upper)
         context.restoreGState()
 
-        // 2b. 金属竖直渐变：上缘受光、下缘转暗。
+        // 2b. 铝框的竖直受光：上缘亮、下缘暗。
+        //     玻璃会盖住中间，实际露出来的只有 5.5u 宽的框，
+        //     所以渐变要在这里就把明暗交代清楚。
         context.saveGState()
-        context.addPath(bodyPath)
+        add(bodyPath)
         context.clip()
         drawMetalGradient(
             in: context,
-            rect: flipped(bodyRect),
+            rect: flipped(bodyRect, pixelHeight: pixelHeight),
             palette: palette
         )
         context.restoreGState()
 
-        // 4. 屏幕底（黑边区域）+ 内容
-        //
-        //    屏幕是「上圆下方」：只有左上、右上两角是圆角，下面两角是直角。
-        //    这是最新 MacBook 的真实特征，四角全圆会显得像老款 iPad。
-        let screenPath = topRoundedPath(
-            flipped(screenRect),
-            topRadius: Metrics.screenCornerTop * scale
-        )
-        // 屏幕玻璃底：真机关屏时是极深的灰，不是纯黑；纯黑会让边界过于生硬。
+        // 2c. 倒角：外沿一道暗缝 + 内侧一道高光。
+        //     高光裁剪在机身内，只留内侧一半，避免在背景上糊出一圈白边。
         context.saveGState()
-        context.setFillColor(palette.glass)
-        context.addPath(screenPath)
-        context.fillPath()
-
-        // 内容按屏幕圆角裁切，四角才不会溢出到机身上。
-        context.addPath(screenPath)
+        add(bodyPath)
         context.clip()
-        // 内容在屏幕内居中：四周各让出 bezel。
-        let contentRect = CGRect(
-            x: screenRect.minX + scaledBezel,
-            y: screenRect.minY + scaledBezel,
-            width: screenRect.width - scaledBezel * 2,
-            height: screenRect.height - scaledBezel * 2
+        stroke(bodyPath, palette.chamfer, width: 1.8 * scale)
+        context.restoreGState()
+        stroke(bodyPath, palette.edge, width: max(0.8, 1.0 * scale))
+
+        // 3. 玻璃嵌进铝框的软阴影：贴着玻璃外沿压一道模糊暗边，
+        //    只留在铝框上（玻璃随后会被重新盖住），转角才不会有生硬的接缝。
+        context.saveGState()
+        add(bodyPath)
+        context.clip()
+        context.setShadow(
+            offset: .zero,
+            blur: 4 * scale,
+            color: CGColor(gray: 0, alpha: 0.28)
         )
-        context.draw(content, in: flipped(contentRect))
+        stroke(glassPath, CGColor(gray: 0, alpha: 0.30), width: max(0.8, 1.2 * scale))
         context.restoreGState()
 
-        // 5. 刘海：从**内容区上沿**往下长出，上沿贴黑边。
-        //    真机的刘海就是从屏幕玻璃顶边长出来的，不是悬在中间；
-        //    它压在内容上，因此必须先画内容再画它（顺序见下）。
-        let contentTop = screenRect.minY + scaledBezel
+        // 3b. 玻璃底
+        fill(glassPath, palette.glass)
+
+        // 4. 内容：先裁到玻璃，再裁到「只有上圆角」的面板形状。
+        //    下巴更宽，底部两角本来就落在黑边里，所以面板保持方形下角——
+        //    这正是真机的特征（2021 起面板上圆下方）。
+        let panelPath = squirclePath(
+            contentRect,
+            cornerRadius: Metrics.panelCornerTop * scale,
+            corners: [.topLeft, .topRight],
+            exponent: Metrics.squircleExponent
+        )
+        context.saveGState()
+        add(glassPath)
+        context.clip()
+        add(panelPath)
+        context.clip()
+        context.draw(content, in: flipped(contentRect, pixelHeight: pixelHeight))
+        context.restoreGState()
+
+        // 5. 玻璃与铝框之间的接缝：贴着玻璃外沿压一道极细暗线，
+        //    让黑色玻璃「嵌」在铝框里，而不是浮在表面。
+        stroke(glassPath, palette.seam, width: max(1, 1.4 * scale))
+
+        // 6. 刘海：从上黑边往下长，与玻璃同色。
+        //    顶部落在黑边里，所以只有压住内容的底部可见；
+        //    底部两角圆润，顶部不需要圆角（会和上黑边连成一片）。
+        let notchWidth = Metrics.notchWidth * scale
+        // 刘海高度默认取 14 吋真机值；已知菜单栏高度时按菜单栏对齐。
+        // 夹在 8…30u：太小不像挖孔，太大则说明菜单栏测量异常（例如 0）。
+        let resolvedNotchHeight = min(
+            max(notchHeightInUnits ?? Metrics.notchHeight, 8),
+            30
+        )
+        let notchHeight = resolvedNotchHeight * scale
         let notchRect = CGRect(
-            x: screenRect.midX - notchWidth * fit / 2,
-            y: contentTop,
-            width: notchWidth * fit,
-            height: notchHeight * fit
+            x: glassRect.midX - notchWidth / 2,
+            y: glassRect.minY,
+            width: notchWidth,
+            height: bezelTop + notchHeight
         )
-        // 真机刘海（2021 起）是「上沿平直、两侧以圆角收进屏幕」的形状：
-        // 两个下角用三次贝塞尔，比二次曲线更接近连续的曲率过渡；
-        // 四角再加一点点外圆角，避免两条边在屏幕上沿交接处出现尖角。
-        let nRect = flipped(notchRect)
-        // 四角同半径：真机刘海是圆角矩形挖孔，不是「上直角、下半圆」。
-        let corner = Metrics.notchCorner * scale
-        let topCorner = corner
-        // 三次贝塞尔近似 1/4 圆的控制点系数。
-        let k: CGFloat = 0.5523
+        let notchPath = squirclePath(
+            notchRect,
+            cornerRadius: Metrics.notchCorner * scale,
+            corners: [.bottomLeft, .bottomRight],
+            exponent: Metrics.squircleExponent
+        )
+        fill(notchPath, palette.glass)
 
-        let notchPath = CGMutablePath()
-        // 从上沿左侧开始（受 topCorner 内缩）
-        notchPath.move(to: CGPoint(x: nRect.minX + topCorner, y: nRect.maxY))
-        // 上左小圆角 → 左直边
-        notchPath.addCurve(
-            to: CGPoint(x: nRect.minX, y: nRect.maxY - topCorner),
-            control1: CGPoint(x: nRect.minX + topCorner * (1 - k), y: nRect.maxY),
-            control2: CGPoint(x: nRect.minX, y: nRect.maxY - topCorner * (1 - k))
+        // 7. 摄像头：刘海顶部的一颗小镜头。没有它，刘海就是一块黑标签。
+        let cameraDiameter = Metrics.cameraDiameter * scale
+        // 摄像头藏在刘海露出来的那一截里（不是上黑边里）：
+        // 真机镜头约在玻璃顶边下方 5 mm，正好落在刘海露出的上三分之一。
+        let cameraRect = CGRect(
+            x: notchRect.midX - cameraDiameter / 2,
+            y: glassRect.minY + bezelTop + notchHeight * 0.30 - cameraDiameter / 2,
+            width: cameraDiameter,
+            height: cameraDiameter
         )
-        // 左直边下行到圆角起点
-        notchPath.addLine(to: CGPoint(x: nRect.minX, y: nRect.minY + corner))
-        // 左下大圆角
-        notchPath.addCurve(
-            to: CGPoint(x: nRect.minX + corner, y: nRect.minY),
-            control1: CGPoint(x: nRect.minX, y: nRect.minY + corner * (1 - k)),
-            control2: CGPoint(x: nRect.minX + corner * (1 - k), y: nRect.minY)
+        fill(CGPath(ellipseIn: cameraRect, transform: nil), palette.lens)
+        stroke(
+            CGPath(ellipseIn: cameraRect.insetBy(dx: -0.3 * scale, dy: -0.3 * scale), transform: nil),
+            palette.lensRing,
+            width: max(0.4, 0.5 * scale)
         )
-        // 底边
-        notchPath.addLine(to: CGPoint(x: nRect.maxX - corner, y: nRect.minY))
-        // 右下大圆角
-        notchPath.addCurve(
-            to: CGPoint(x: nRect.maxX, y: nRect.minY + corner),
-            control1: CGPoint(x: nRect.maxX - corner * (1 - k), y: nRect.minY),
-            control2: CGPoint(x: nRect.maxX, y: nRect.minY + corner * (1 - k))
-        )
-        // 右直边上行
-        notchPath.addLine(to: CGPoint(x: nRect.maxX, y: nRect.maxY - topCorner))
-        // 上右小圆角
-        notchPath.addCurve(
-            to: CGPoint(x: nRect.maxX - topCorner, y: nRect.maxY),
-            control1: CGPoint(x: nRect.maxX, y: nRect.maxY - topCorner * (1 - k)),
-            control2: CGPoint(x: nRect.maxX - topCorner * (1 - k), y: nRect.maxY)
-        )
-        notchPath.closeSubpath()
-        context.saveGState()
-        // 刘海与玻璃同色：真机刘海是一块连续的黑色挖孔，不是贴上去的黑块。
-        context.setFillColor(palette.glass)
-        context.addPath(notchPath)
-        context.fillPath()
-        // 极细的暗描边，让刘海和菜单栏之间有可辨的接缝。
-        context.addPath(notchPath)
-        context.setStrokeColor(CGColor(gray: 0, alpha: 0.55))
-        context.setLineWidth(max(0.5, 0.6 * scale))
-        context.strokePath()
-        context.restoreGState()
-
-        // 6. 机身外沿高光 + 内沿阴影，做出金属倒角与层次。
-        //
-        //    这两道是「像 MacBook」的关键：没有它们，机身就是一块纯色板，
-        //    圆角在视觉上会读成硬直角。
-        context.saveGState()
-        // 直接沿机身路径描边即可：描边居中在路径上，一半在内一半在外，
-        // 外半被画布裁掉、内半留在机身上，天然形成贴着外沿的高光。
-        //
-        // 之前另外造了一条「内缩路径」，但圆角半径没同步缩，
-        // 两者不同心，转角处就露出错位的白边。
-        context.addPath(bodyPath)
-        context.setStrokeColor(palette.rimHighlight)
-        context.setLineWidth(max(1, 1.2 * scale))
-        context.strokePath()
-        context.restoreGState()
-
-        // 内沿阴影：贴着屏幕（黑边区）外圈压一道暗边，把屏幕「嵌」进机身。
-        context.saveGState()
-        let screenFrame = screenRect.insetBy(dx: -1.2 * scale, dy: -1.2 * scale)
-        let innerPath = CGPath(
-            roundedRect: flipped(screenFrame),
-            cornerWidth: Metrics.screenCornerTop * scale + 1.2 * scale,
-            cornerHeight: Metrics.screenCornerTop * scale + 1.2 * scale,
-            transform: nil
-        )
-        context.addPath(innerPath)
-        context.setStrokeColor(palette.innerShade)
-        context.setLineWidth(max(1, 1.6 * scale))
-        context.strokePath()
-        context.restoreGState()
 
         guard let output = context.makeImage() else {
             throw CaptureError.encodingFailed
@@ -328,53 +318,59 @@ nonisolated enum DeviceFrameComposer {
 
     /// 机身配色。
     ///
-    /// 真机是阳极氧化铝：不是单一填充色，而是「上缘受光 → 中间平缓 → 下缘转暗」的柔和渐变，
-    /// 再加一道 1u 亮高光勾外沿、一道内阴影压内沿。
-    /// 只填一个纯色会让机身和背景糊成一片，圆角看起来也就「硬」了。
+    /// 真机是阳极氧化铝：上缘受光、下缘转暗，转角处有一道被铣出来的亮倒角。
+    /// 只填纯色会让铝框和背景糊在一起，圆角也会读成「塑料切角」。
     private struct Palette {
         /// 竖直渐变的四个停靠点（从上到下）。
         let highlight: CGColor
         let upper: CGColor
         let lower: CGColor
         let shade: CGColor
-        /// 外沿高光。
-        let rimHighlight: CGColor
-        /// 内沿阴影（机身与黑边之间）。
-        let innerShade: CGColor
-        /// 屏幕玻璃底色。
+        /// 外沿倒角高光。
+        let chamfer: CGColor
+        /// 最外沿的暗边，用来把机身从背景里切出来。
+        let edge: CGColor
+        /// 玻璃与铝框之间的接缝。
+        let seam: CGColor
+        /// 屏幕玻璃底色。真机关屏是深灰而不是纯黑，纯黑会让边界过硬。
         let glass: CGColor
+        /// 摄像头开孔。
+        let lens: CGColor
+        let lensRing: CGColor
     }
 
     private static func palette(for finish: DeviceFrameStyle.Finish) -> Palette {
         switch finish {
         case .silver:
             return Palette(
-                highlight: color(0xF7F8F9),
-                upper: color(0xE8E9EB),
-                lower: color(0xD2D3D6),
-                shade: color(0xBFC0C4),
-                // 浅银底上用纯白会过曝成一道白边，降到 0.55 并略带暖调。
-                rimHighlight: color(0xFFFFFF, alpha: 0.55),
-                innerShade: color(0x5A5A5F, alpha: 0.22),
-                glass: color(0x16171A)
+                highlight: color(0xDADBDD),
+                upper: color(0xD3D4D7),
+                lower: color(0xC9CACE),
+                shade: color(0xBEBFC3),
+                chamfer: color(0xFFFFFF, alpha: 0.46),
+                edge: color(0x747578, alpha: 0.90),
+                seam: color(0x000000, alpha: 0.62),
+                glass: color(0x08090B),
+                lens: color(0x1B1D22),
+                lensRing: color(0x3C4048, alpha: 0.85)
             )
         case .spaceGray:
             return Palette(
-                highlight: color(0x6C6C72),
-                upper: color(0x515157),
-                lower: color(0x3A3A3F),
-                shade: color(0x2A2A2E),
-                rimHighlight: color(0x9A9AA0, alpha: 0.55),
-                innerShade: color(0x000000, alpha: 0.55),
-                glass: color(0x0E0F11)
+                highlight: color(0x6B6C72),
+                upper: color(0x5C5D63),
+                lower: color(0x4D4E54),
+                shade: color(0x3C3D43),
+                chamfer: color(0xD9DBDF, alpha: 0.26),
+                edge: color(0x111214, alpha: 0.95),
+                seam: color(0x000000, alpha: 0.72),
+                glass: color(0x050506),
+                lens: color(0x14161A),
+                lensRing: color(0x2E3138, alpha: 0.9)
             )
         }
     }
 
     /// 四点竖直渐变，做出阳极氧化铝的柔和受光。
-    ///
-    /// 用四个停靠点而不是两端：真机机身的上缘高光和下缘阴影都只占很小一段，
-    /// 中间是大片平缓过渡，两端渐变会显得像塑料。
     private static func drawMetalGradient(
         in context: CGContext,
         rect: CGRect,
@@ -400,36 +396,142 @@ nonisolated enum DeviceFrameComposer {
         )
     }
 
-    /// 顶部两角圆、底部两角直角的矩形路径。
+    /// 连续圆角（squircle）矩形路径。
     ///
-    /// 用三次贝塞尔（0.5523 系数）近似 1/4 圆；这个尺寸下与真机的差别不可见。
-    /// 注意入参 rect 已是**翻转后**的坐标（左下原点），所以「顶部」是 maxY 一侧。
-    private static func topRoundedPath(_ rect: CGRect, topRadius radius: CGFloat) -> CGPath {
-        let r = min(radius, min(rect.width, rect.height) / 2)
-        let k: CGFloat = 0.5523
+    /// 用超椭圆 `|x|^n + |y|^n = 1` 采样，而不是圆弧：
+    /// Apple 硬件的转角曲率是连续过渡的，正圆弧会在直线与转角交接处留下
+    /// 一道肉眼可见的「折点」，在大圆角、宽机身上尤其像塑料。
+    ///
+    /// - Parameters:
+    ///   - corners: 需要倒圆的角。刘海只圆下面两角、面板只圆上面两角。
+    ///   - exponent: 2 为正圆，越大越饱满。3 接近真机。
+    private static func squirclePath(
+        _ rect: CGRect,
+        cornerRadius radius: CGFloat,
+        corners: Corners,
+        exponent: CGFloat
+    ) -> CGPath {
         let path = CGMutablePath()
-        // 左下（直角）
-        path.move(to: CGPoint(x: rect.minX, y: rect.minY))
-        // 左侧上行到左上角圆角起点
-        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY - r))
-        // 左上圆角
-        path.addCurve(
-            to: CGPoint(x: rect.minX + r, y: rect.maxY),
-            control1: CGPoint(x: rect.minX, y: rect.maxY - r * (1 - k)),
-            control2: CGPoint(x: rect.minX + r * (1 - k), y: rect.maxY)
-        )
-        // 上边
-        path.addLine(to: CGPoint(x: rect.maxX - r, y: rect.maxY))
-        // 右上圆角
-        path.addCurve(
-            to: CGPoint(x: rect.maxX, y: rect.maxY - r),
-            control1: CGPoint(x: rect.maxX - r * (1 - k), y: rect.maxY),
-            control2: CGPoint(x: rect.maxX, y: rect.maxY - r * (1 - k))
-        )
-        // 右侧下行到右下（直角）
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+        let r = min(radius, min(rect.width, rect.height) / 2)
+        guard r > 0, corners != [] else {
+            path.addRect(rect)
+            return path
+        }
+
+        // 每角采样段数。24 段在 2u 缩放、2000 px 宽的输出上弦高不足 0.1 px。
+        let segments = 24
+        let power = 2 / max(exponent, 2)
+
+        // 在**屏幕坐标**（左上原点）里构造，调用方负责翻转。
+        //
+        // 每个角用一个局部超椭圆：O 是转角圆心，inX / inY 是从圆心指向矩形内部的方向。
+        // 超椭圆在 45° 处比正圆更贴近角点，也就是「更饱满」——
+        // 这就是 Apple 连续圆角的观感来源。
+        //
+        // 走向为顺时针：左上 → 右上 → 右下 → 左下。
+        // 右上、左下两个角的参数方向相反，否则曲线会绕到矩形外面。
+        func cornerPoints(
+            center: CGPoint,
+            inX: CGFloat,
+            inY: CGFloat,
+            reversed: Bool
+        ) -> [CGPoint] {
+            (0...segments).map { index in
+                let step = reversed ? segments - index : index
+                let angle = CGFloat(step) / CGFloat(segments) * .pi / 2
+                let u = r * pow(cos(angle), power)
+                let v = r * pow(sin(angle), power)
+                return CGPoint(x: center.x - inX * u, y: center.y - inY * v)
+            }
+        }
+
+        func addLine(_ point: CGPoint) {
+            path.addLine(to: point)
+        }
+
+        // 从左上角之后的上边开始，顺时针走一圈。
+        path.move(to: CGPoint(
+            x: rect.minX + (corners.contains(.topLeft) ? r : 0),
+            y: rect.minY
+        ))
+
+        if corners.contains(.topRight) {
+            addLine(CGPoint(x: rect.maxX - r, y: rect.minY))
+            for point in cornerPoints(
+                center: CGPoint(x: rect.maxX - r, y: rect.minY + r),
+                inX: -1,
+                inY: 1,
+                reversed: true
+            ) {
+                addLine(point)
+            }
+        } else {
+            addLine(CGPoint(x: rect.maxX, y: rect.minY))
+        }
+
+        if corners.contains(.bottomRight) {
+            addLine(CGPoint(x: rect.maxX, y: rect.maxY - r))
+            for point in cornerPoints(
+                center: CGPoint(x: rect.maxX - r, y: rect.maxY - r),
+                inX: -1,
+                inY: -1,
+                reversed: false
+            ) {
+                addLine(point)
+            }
+        } else {
+            addLine(CGPoint(x: rect.maxX, y: rect.maxY))
+        }
+
+        if corners.contains(.bottomLeft) {
+            addLine(CGPoint(x: rect.minX + r, y: rect.maxY))
+            for point in cornerPoints(
+                center: CGPoint(x: rect.minX + r, y: rect.maxY - r),
+                inX: 1,
+                inY: -1,
+                reversed: true
+            ) {
+                addLine(point)
+            }
+        } else {
+            addLine(CGPoint(x: rect.minX, y: rect.maxY))
+        }
+
+        if corners.contains(.topLeft) {
+            addLine(CGPoint(x: rect.minX, y: rect.minY + r))
+            for point in cornerPoints(
+                center: CGPoint(x: rect.minX + r, y: rect.minY + r),
+                inX: 1,
+                inY: 1,
+                reversed: false
+            ) {
+                addLine(point)
+            }
+        } else {
+            addLine(CGPoint(x: rect.minX, y: rect.minY))
+        }
+
         path.closeSubpath()
         return path
+    }
+
+    /// 需要倒圆的角（按屏幕坐标，左上原点）。
+    private struct Corners: OptionSet {
+        let rawValue: Int
+        static let topLeft = Corners(rawValue: 1 << 0)
+        static let topRight = Corners(rawValue: 1 << 1)
+        static let bottomRight = Corners(rawValue: 1 << 2)
+        static let bottomLeft = Corners(rawValue: 1 << 3)
+        static let all: Corners = [.topLeft, .topRight, .bottomRight, .bottomLeft]
+    }
+
+    private static func flipped(_ rect: CGRect, pixelHeight: Int) -> CGRect {
+        CGRect(
+            x: rect.minX,
+            y: CGFloat(pixelHeight) - rect.maxY,
+            width: rect.width,
+            height: rect.height
+        )
     }
 
     private static func color(_ hex: UInt32, alpha: CGFloat = 1) -> CGColor {
@@ -441,21 +543,29 @@ nonisolated enum DeviceFrameComposer {
         )
     }
 
-    /// 输出尺寸（导出用）。单测与预览 sizing 共用，避免两处各算一遍。
+    /// 机身（屏幕面）尺寸，不含外边距。
+    ///
+    /// 单测用它锁死「14 吋真机比例」，`outputSize` 也走这里，避免两处各算一遍。
+    static func lidSize(for contentPixelSize: CGSize) -> CGSize {
+        let unit = contentUnit(forWidth: contentPixelSize.width)
+        let width = contentPixelSize.width
+            + (Metrics.bezelSide + Metrics.rim) * 2 * unit
+        let height = contentPixelSize.height
+            + (Metrics.bezelTop + Metrics.bezelBottom + Metrics.rim * 2) * unit
+        return CGSize(width: width, height: height)
+    }
+
+    /// 输出尺寸（导出用）。单测与预览 sizing 共用。
     static func outputSize(
         for contentPixelSize: CGSize,
         style: DeviceFrameStyle
     ) -> CGSize {
-        let unit = min(max(contentPixelSize.width / contentWidthForUnit, 0.8), 2.0)
-        let bezel = Metrics.bezel * unit
-        let chin = Metrics.chin * unit
-        let rim = Metrics.bodyRim * unit
+        let unit = contentUnit(forWidth: contentPixelSize.width)
         let padding = style.padding.baseValue * unit
-        let bodyWidth = contentPixelSize.width + (bezel + rim) * 2
-        let bodyHeight = contentPixelSize.height + (bezel + rim) * 2 + chin
+        let lid = lidSize(for: contentPixelSize)
         return CGSize(
-            width: bodyWidth + padding * 2,
-            height: bodyHeight + padding * 2
+            width: lid.width + padding * 2,
+            height: lid.height + padding * 2
         )
     }
 }
