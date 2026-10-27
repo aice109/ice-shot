@@ -44,7 +44,7 @@ final class CaptureCoordinator {
     /// 防止连点把同一次窗口抓取提交成两次（抓取是 async 的，浮层在这期间仍可点）。
     private var isPickingWindow = false
     private var pendingSource: ScreenshotSource = .region
-    private var pendingAllDisplays: (images: [CGImage], index: Int)?
+    private var pendingAllDisplays: (images: [CGImage], displays: [DisplayDescriptor], index: Int)?
 
     init(
         permission: ScreenRecordingPermissionChecking,
@@ -360,7 +360,11 @@ final class CaptureCoordinator {
                 OverlayCoordinates.containsInclusive($0.display.appKitFrame, NSEvent.mouseLocation)
             } ?? 0
             let current = frames[currentIndex]
-            pendingAllDisplays = (images: images, index: currentIndex)
+            pendingAllDisplays = (
+                images: images,
+                displays: frames.map(\.display),
+                index: currentIndex
+            )
             let preset = SelectionPreset(
                 displayID: current.display.id,
                 rect: CGRect(origin: .zero, size: current.display.pointSize),
@@ -829,7 +833,7 @@ final class CaptureCoordinator {
     /// 历史库仍然只收原图（`handleFinish` 里的 `historyImages`）。
     private func saveResult(
         _ image: CGImage,
-        batch: (images: [CGImage], index: Int)?,
+        batch: (images: [CGImage], displays: [DisplayDescriptor], index: Int)?,
         frameStyle: ScreenshotFrameStyle?
     ) {
         HangTrace.mark("save.present.begin")
@@ -839,7 +843,12 @@ final class CaptureCoordinator {
             if let batch, batch.images.count > 1 {
                 var images = batch.images
                 images[batch.index] = image
-                images = framedBatch(images, index: batch.index, style: frameStyle)
+                images = framedBatch(
+                    images,
+                    displays: batch.displays,
+                    index: batch.index,
+                    style: frameStyle
+                )
                 savedCount = try SavePanel.savePNGs(images)
             } else {
                 savedCount = try SavePanel.savePNG(image) ? 1 : 0
@@ -868,14 +877,24 @@ final class CaptureCoordinator {
     /// - Returns: 每张都带壳的整批图；无样式或套壳失败时原样返回对应项。
     private func framedBatch(
         _ images: [CGImage],
+        displays: [DisplayDescriptor],
         index: Int,
         style: ScreenshotFrameStyle?
     ) -> [CGImage] {
         guard let style else { return images }
         return images.enumerated().map { offset, image in
             guard offset != index else { return image }
+            // 每块屏的菜单栏高度可能不同，刘海按各自的屏对齐。
+            let notchHeight = displays.indices.contains(offset)
+                ? displays[offset].menuBarHeightInUnits(forContentWidth: CGFloat(image.width))
+                : nil
             // 走 `compose`：`.macbook` 要转交给设备壳渲染器。
-            return (try? ScreenshotFrameComposer.compose(image, cropRect: nil, style: style)) ?? image
+            return (try? ScreenshotFrameComposer.compose(
+                image,
+                cropRect: nil,
+                style: style,
+                deviceNotchHeightInUnits: notchHeight
+            )) ?? image
         }
     }
 

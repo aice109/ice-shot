@@ -16,13 +16,20 @@ struct DisplayDescriptor: Sendable, Identifiable, Hashable {
     let pixelSize: CGSize
     let scale: CGFloat
     let localizedName: String
+    /// 菜单栏高度（points）。`frame.maxY − visibleFrame.maxY`，没有菜单栏时为 0。
+    ///
+    /// 设备壳的刘海要跟截图里的菜单栏对齐，而不是死守 14 吋真机的 32 pt：
+    /// 同一张 MacBook 外框套在 16:9 外接屏截图上时，菜单栏会比真机矮，
+    /// 固定刘海会压过菜单栏底边（用户可见的错位）。
+    let menuBarHeight: CGFloat
 
     init(
         id: CGDirectDisplayID,
         frame: CGRect,
         appKitFrame: CGRect,
         scale: CGFloat,
-        localizedName: String = ""
+        localizedName: String = "",
+        menuBarHeight: CGFloat = 0
     ) {
         self.id = id
         self.frame = frame
@@ -34,6 +41,7 @@ struct DisplayDescriptor: Sendable, Identifiable, Hashable {
         )
         self.scale = scale
         self.localizedName = localizedName
+        self.menuBarHeight = menuBarHeight
     }
 
     init?(screen: NSScreen, primaryMaxY: CGFloat) {
@@ -52,8 +60,19 @@ struct DisplayDescriptor: Sendable, Identifiable, Hashable {
             frame: cgFrame,
             appKitFrame: appKitFrame,
             scale: scale,
-            localizedName: screen.localizedName
+            localizedName: screen.localizedName,
+            menuBarHeight: max(0, screen.frame.maxY - screen.visibleFrame.maxY)
         )
+    }
+}
+
+extension DisplayDescriptor {
+    /// 菜单栏高度换算成设备壳使用的 u（内容宽 1000 = 1u）。
+    ///
+    /// 乘 `scale` 得到截图里的像素高度，再按内容宽归一。没有菜单栏（或宽度异常）时返回 nil。
+    func menuBarHeightInUnits(forContentWidth contentWidth: CGFloat) -> CGFloat? {
+        guard menuBarHeight > 0, scale > 0, contentWidth > 0 else { return nil }
+        return menuBarHeight * scale * 1000 / contentWidth
     }
 }
 
@@ -70,6 +89,22 @@ enum ScreenGeometry {
     static func makeDescriptors(screens: [NSScreen] = NSScreen.screens) -> [DisplayDescriptor] {
         let maxY = primaryMaxY(screens: screens)
         return screens.compactMap { DisplayDescriptor(screen: $0, primaryMaxY: maxY) }
+    }
+
+    /// 按图像像素尺寸找当前连接的显示器。
+    ///
+    /// 历史截图没有存来源显示器，只能拿原图尺寸反查；显示器拔掉后匹配不到，
+    /// 由调用方回退到 14 吋真机值。
+    static func descriptor(
+        matchingPixelSize size: CGSize,
+        screens: [NSScreen] = NSScreen.screens
+    ) -> DisplayDescriptor? {
+        let width = Int(size.width.rounded())
+        let height = Int(size.height.rounded())
+        return makeDescriptors(screens: screens).first {
+            Int($0.pixelSize.width.rounded()) == width
+                && Int($0.pixelSize.height.rounded()) == height
+        }
     }
 
     static func cgRect(fromAppKit rect: CGRect, primaryMaxY: CGFloat) -> CGRect {

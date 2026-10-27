@@ -299,7 +299,8 @@ struct ScreenshotFramePopover: View {
                 contentImage,
                 cropRect: nil,
                 style: style,
-                maximumDimension: 720
+                maximumDimension: 720,
+                deviceNotchHeightInUnits: model.deviceNotchHeightInUnits
             )
         } else {
             preview = contentImage

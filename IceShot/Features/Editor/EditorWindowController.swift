@@ -36,7 +36,16 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
         deleter: (any EditorDeleting)? = nil,
         target: EditorTarget = .standalone
     ) {
-        let model = EditorModel(image: image, title: title)
+        // 历史截图没有存来源显示器：按原图尺寸反查当前连接的屏，
+        // 拿到菜单栏高度后再对齐设备壳的刘海。反查不到就回退到 14 吋真机值。
+        let notchHeight = ScreenGeometry.descriptor(
+            matchingPixelSize: CGSize(width: image.width, height: image.height)
+        )?.menuBarHeightInUnits(forContentWidth: CGFloat(image.width))
+        let model = EditorModel(
+            image: image,
+            title: title,
+            deviceNotchHeightInUnits: notchHeight
+        )
         self.model = model
         self.pins = pins
         self.feedback = feedback

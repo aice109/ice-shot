@@ -260,7 +260,16 @@ final class SelectionOverlayController: SelectionOverlayPresenting {
             source: source
         )
         overlayState.update(displayID: displayID, rect: rect)
-        let editor = EditorModel(image: image, title: String(localized: "截图"))
+        // 设备壳的刘海高度跟来源屏的菜单栏对齐：外接屏菜单栏比 14 吋真机矮，
+        // 固定物理值会压过菜单栏底边。区域截图用不到设备壳，传了也无副作用。
+        let notchHeight = frame.display.menuBarHeightInUnits(
+            forContentWidth: CGFloat(image.width)
+        )
+        let editor = EditorModel(
+            image: image,
+            title: String(localized: "截图"),
+            deviceNotchHeightInUnits: notchHeight
+        )
         // 窗口来源的图自带交通灯，默认改用「仅阴影」，避免导出时双层红黄绿。
         editor.applyDefaultFrameStyle(for: source)
         overlayState.beginEditing(
@@ -540,7 +549,10 @@ final class SelectionOverlayController: SelectionOverlayPresenting {
             return try? ScreenshotFrameComposer.compose(
                 session.image,
                 cropRect: pixelRect,
-                style: style
+                style: style,
+                deviceNotchHeightInUnits: session.displayFrame.display.menuBarHeightInUnits(
+                    forContentWidth: CGFloat(session.image.width)
+                )
             )
         }
 

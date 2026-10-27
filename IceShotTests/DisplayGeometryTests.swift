@@ -18,6 +18,21 @@ struct DisplayGeometryTests {
         #expect(roundTrip == appKit)
     }
 
+    @Test func menuBarHeightConvertsToShellUnits() {
+        let display = DisplayDescriptor(
+            id: 7,
+            frame: CGRect(x: 0, y: 0, width: 1920, height: 1080),
+            appKitFrame: CGRect(x: 0, y: 0, width: 1920, height: 1080),
+            scale: 2,
+            localizedName: "4K",
+            menuBarHeight: 31
+        )
+        let units = display.menuBarHeightInUnits(forContentWidth: 3840)
+        #expect(units != nil)
+        #expect(abs((units ?? 0) - 16.1458) < 0.001)
+        #expect(display.menuBarHeightInUnits(forContentWidth: 0) == nil)
+    }
+
     @Test func displayLocalRectHandlesNegativeOrigin() {
         let display = DisplayDescriptor(
             id: 2,

@@ -22,7 +22,8 @@ nonisolated enum ScreenshotFrameComposer {
         _ content: CGImage,
         cropRect: CGRect?,
         style: ScreenshotFrameStyle?,
-        maximumDimension: Int? = nil
+        maximumDimension: Int? = nil,
+        deviceNotchHeightInUnits: CGFloat? = nil
     ) throws -> CGImage {
         let cropped: CGImage?
         if let cropRect {
@@ -41,7 +42,8 @@ nonisolated enum ScreenshotFrameComposer {
             return try DeviceFrameComposer.render(
                 framed,
                 style: DeviceFrameStyle.derived(from: style),
-                maximumDimension: maximumDimension
+                maximumDimension: maximumDimension,
+                notchHeightInUnits: deviceNotchHeightInUnits
             )
         }
         return try render(

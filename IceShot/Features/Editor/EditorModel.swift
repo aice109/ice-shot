@@ -110,6 +110,12 @@ final class EditorModel {
     /// 要进预览、要进偏好、但不进撤销栈。
     private(set) var deviceFinish: DeviceFrameStyle.Finish = .silver
 
+    /// 来源显示器菜单栏高度换算出的刘海高度（u）。`nil` 时设备壳回退到 14 吋真机值。
+    ///
+    /// 只在内存里：它是这张图的来源属性，不是用户偏好，也不该被下一次截图沿用。
+    /// 历史截图没有这条信息时，`EditorWindowController` 会按原图尺寸反查当前显示器。
+    private(set) var deviceNotchHeightInUnits: CGFloat?
+
     func setDeviceFinish(_ finish: DeviceFrameStyle.Finish) {
         deviceFinish = finish
         ScreenshotFramePreferences.saveDeviceFinish(finish, to: framePreferenceDefaults)
@@ -219,11 +225,13 @@ final class EditorModel {
     init(
         image: CGImage,
         title: String,
-        framePreferenceDefaults: UserDefaults = .standard
+        framePreferenceDefaults: UserDefaults = .standard,
+        deviceNotchHeightInUnits: CGFloat? = nil
     ) {
         self.image = image
         self.title = title
         self.framePreferenceDefaults = framePreferenceDefaults
+        self.deviceNotchHeightInUnits = deviceNotchHeightInUnits
         let rememberedFinish = ScreenshotFramePreferences.deviceFinish(from: framePreferenceDefaults)
         var initialStyle = ScreenshotFramePreferences.style(from: framePreferenceDefaults) ?? .default
         initialStyle.deviceFinish = rememberedFinish
@@ -854,7 +862,8 @@ final class EditorModel {
         return try? ScreenshotFrameComposer.compose(
             content,
             cropRect: cropRect,
-            style: frameStyle
+            style: frameStyle,
+            deviceNotchHeightInUnits: deviceNotchHeightInUnits
         )
     }
 
